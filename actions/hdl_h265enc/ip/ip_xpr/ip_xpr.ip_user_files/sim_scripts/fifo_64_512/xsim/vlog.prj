@@ -1,0 +1,6 @@
+verilog xil_defaultlib  \
+"../../../../../fifo_64_512/sim/fifo_64_512.v" \
+
+verilog xil_defaultlib "glbl.v"
+
+nosort

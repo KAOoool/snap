@@ -353,6 +353,7 @@ ARCHITECTURE psl_accel OF psl_accel IS
   COMPONENT action_wrapper
     PORT (
       ap_clk                  : IN  STD_LOGIC;
+      clk_125MHz              : IN  STD_LOGIC;
       ap_rst_n                : IN  STD_LOGIC;
       interrupt_ack           : IN  STD_LOGIC;
       interrupt               : OUT STD_LOGIC;
@@ -1424,6 +1425,7 @@ BEGIN
   action_w: action_wrapper
     PORT MAP (
       ap_clk                               => ha_pclock,
+      clk_125MHz                           => pci_clock_125MHz,
       ap_rst_n                             => action_reset_n_q,
       interrupt_ack                        => sk_d.int_req_ack,
       interrupt                            => ks_d.int_req,

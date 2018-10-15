@@ -339,8 +339,6 @@ int main (int argc, char* argv[])
         y_total = action_read(dn, REG_Y_TOTAL);
         qp = action_read(dn, REG_QP);
 
-        VERBOSE0("alloc_mem:ori_base:0x%X\n",src);
-        VERBOSE0("alloc_mem:ori_base:0x%X\n",dest);
 	VERBOSE0("ori_base_high:0X%X\n", ori_base_high);
 	VERBOSE0("ori_base_low:0X%X\n", ori_base_low);
 	VERBOSE0("bs_base_high:0X%X\n", bs_base_high);

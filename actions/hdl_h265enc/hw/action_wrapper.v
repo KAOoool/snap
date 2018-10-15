@@ -191,6 +191,13 @@ module action_wrapper #(
     output m_axi_host_mem_wvalid
 );
 
+    wire [3:0] w_axi_host_mem_arlen;
+    wire [3:0] w_axi_host_mem_awlen;
+    wire [3:0] w_axi_card_mem0_arlen;
+    wire [3:0] w_axi_card_mem0_awlen;
+    wire [31:0] w_axi_card_mem0_awaddr;
+    wire [31:0] w_axi_card_mem0_araddr;
+
     // Make wuser stick to 0
     assign m_axi_card_mem0_wuser = 0;
     assign m_axi_card_mem0_aruser = 0;
@@ -199,6 +206,8 @@ module action_wrapper #(
     assign m_axi_card_mem0_awuser = 0;
     assign m_axi_card_mem0_awqos = 0;
     assign m_axi_card_mem0_awregion = 0;
+    assign m_axi_card_mem0_awid = 0;
+    assign m_axi_card_mem0_arid = 0;
     assign m_axi_host_mem_wuser = 0;
     assign m_axi_host_mem_aruser = 0;
     assign m_axi_host_mem_arqos = 0;
@@ -206,6 +215,15 @@ module action_wrapper #(
     assign m_axi_host_mem_awuser = 0;
     assign m_axi_host_mem_awqos = 0;
     assign m_axi_host_mem_awregion = 0;
+	assign interrupt = 0;
+	assign interrupt_src = 0;
+	assign interrupt_ctx = 0;
+	assign m_axi_host_mem_arlen = {4'b0,w_axi_host_mem_arlen};
+	assign m_axi_host_mem_awlen = {4'b0,w_axi_host_mem_awlen};
+	assign m_axi_card_mem0_arlen = {4'b0,w_axi_card_mem0_arlen};
+	assign m_axi_card_mem0_awlen = {4'b0,w_axi_card_mem0_awlen};
+    assign m_axi_card_mem0_araddr = {1'b0,w_axi_card_mem0_araddr};
+    assign m_axi_card_mem0_awaddr = {1'b0,w_axi_card_mem0_awaddr};
 
     h265enc_top_with_axi h265enc_top_with_axi_0 (
         .axi_clk            (ap_clk),
@@ -217,7 +235,7 @@ module action_wrapper #(
         // AXI write address channel      
         .axi_m0_awid        (m_axi_host_mem_awid),  
         .axi_m0_awaddr      (m_axi_host_mem_awaddr),  
-        .axi_m0_awlen       (m_axi_host_mem_awlen),  
+        .axi_m0_awlen       (w_axi_host_mem_awlen),  
         .axi_m0_awsize      (m_axi_host_mem_awsize),  
         .axi_m0_awburst     (m_axi_host_mem_awburst),  
         .axi_m0_awcache     (m_axi_host_mem_awcache),  
@@ -239,7 +257,7 @@ module action_wrapper #(
         // AXI read address channel       
         .axi_m0_arid        (m_axi_host_mem_arid),  
         .axi_m0_araddr      (m_axi_host_mem_araddr),  
-        .axi_m0_arlen       (m_axi_host_mem_arlen),  
+        .axi_m0_arlen       (w_axi_host_mem_arlen),  
         .axi_m0_arsize      (m_axi_host_mem_arsize),  
         .axi_m0_arburst     (m_axi_host_mem_arburst),  
         .axi_m0_arcache     (m_axi_host_mem_arcache), 
@@ -257,9 +275,9 @@ module action_wrapper #(
     
         //---- AXI bus interfaced with DDR ----               
         // AXI write address channel      
-        .axi_m1_awid        (m_axi_card_mem0_awid),  
-        .axi_m1_awaddr      (m_axi_card_mem0_awaddr),  
-        .axi_m1_awlen       (m_axi_card_mem0_awlen),  
+        .axi_m1_awid        ( ),//tmp  
+        .axi_m1_awaddr      (w_axi_card_mem0_awaddr),  
+        .axi_m1_awlen       (w_axi_card_mem0_awlen),  
         .axi_m1_awsize      (m_axi_card_mem0_awsize),  
         .axi_m1_awburst     (m_axi_card_mem0_awburst),  
         .axi_m1_awcache     (m_axi_card_mem0_awcache),  
@@ -280,9 +298,9 @@ module action_wrapper #(
         .axi_m1_bresp       (m_axi_card_mem0_bresp),
         .axi_m1_bvalid      (m_axi_card_mem0_bvalid),
         // AXI read address channel       
-        .axi_m1_arid        (m_axi_card_mem0_arid),  
-        .axi_m1_araddr      (m_axi_card_mem0_araddr),  
-        .axi_m1_arlen       (m_axi_card_mem0_arlen),  
+        .axi_m1_arid        ( ),//tmp  
+        .axi_m1_araddr      (w_axi_card_mem0_araddr),  
+        .axi_m1_arlen       (w_axi_card_mem0_arlen),  
         .axi_m1_arsize      (m_axi_card_mem0_arsize),  
         .axi_m1_arburst     (m_axi_card_mem0_arburst),  
         .axi_m1_arcache     (m_axi_card_mem0_arcache), 

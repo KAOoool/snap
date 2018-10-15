@@ -137,9 +137,9 @@ module h265enc_if(
                INTER                = 1               ;
                                                      
   parameter    AXI_DW               = 512             ,
-               AXI_AW               = 32              ,
-               AXI_MIDW             = 4               ,
-               AXI_SIDW             = 8               ;
+               AXI_AW0              = 64              ,
+               AXI_AW1              = 32              ,
+               AXI_MIDW             = 0               ;
 
   parameter    AXI_WID              = 0               ,
                AXI_RID              = 0               ;
@@ -149,19 +149,21 @@ module h265enc_if(
                ADDR_SNAP_ACTION_TYPE         = 4      ,
                ADDR_SNAP_ACTION_VERSION      = 5      ,
                ADDR_SNAP_CONTEXT             = 8      ,
-		       ADDR_START           = 12              ,
-               ADDR_X_TOTAL         = 13              ,
-               ADDR_Y_TOTAL         = 14              ,
-               ADDR_MODE            = 15              ,
+		       ADDR_START           = 13              ,
+               ADDR_X_TOTAL         = 14              ,
+               ADDR_Y_TOTAL         = 15              ,
+               //ADDR_MODE            = 16              ,
                ADDR_QP              = 16              ,
                ADDR_TYPE            = 17              ,
-               ADDR_MIN_SIZE        = 18              ,
-               ADDR_ORI_BASE        = 19              ,
+               //ADDR_MIN_SIZE        = 18              ,
+               ADDR_ORI_BASE_HIGH   = 18              ,
+               ADDR_ORI_BASE_LOW    = 19              ,
                ADDR_REC_0_BASE      = 20              ,
                ADDR_REC_1_BASE      = 21              ,
-               ADDR_BS_BASE         = 22              ,
+               ADDR_COUNTER         = 22              ,
                ADDR_DONE            = 23              ,
-               ADDR_COUNTER         = 24              ;
+               ADDR_BS_BASE_HIGH    = 24              ,
+               ADDR_BS_BASE_LOW     = 25              ;
 
   parameter    LOAD_CUR_SUB         = 01              ,
                LOAD_REF_SUB         = 02              ,
@@ -223,7 +225,7 @@ module h265enc_if(
   output                            pre_min_size_o    ;
 
   // gen_m0 (cur pix & bs)
-  output [AXI_AW-1          : 0]    gen_m0_maddr      ;
+  output [AXI_AW0-1         : 0]    gen_m0_maddr      ;
   output [1                 : 0]    gen_m0_mburst     ;
   output [3                 : 0]    gen_m0_mcache     ;
   output [AXI_DW-1          : 0]    gen_m0_mdata      ;
@@ -244,7 +246,7 @@ module h265enc_if(
   input                             gen_m0_svalid     ;
 
   // gen_m1 (ref pix)
-  output [AXI_AW-1          : 0]    gen_m1_maddr      ;
+  output [AXI_AW1-1         : 0]    gen_m1_maddr      ;
   output [1                 : 0]    gen_m1_mburst     ;
   output [3                 : 0]    gen_m1_mcache     ;
   output [AXI_DW-1          : 0]    gen_m1_mdata      ;
@@ -303,10 +305,14 @@ module h265enc_if(
   reg    [5                 : 0]    reg_qp            ;
   reg                               reg_type          ;
   reg                               reg_min_size      ;
-  reg    [AXI_AW-1          : 0]    reg_ori_base      ;
-  reg    [AXI_AW-1          : 0]    reg_rec_0_base    ;
-  reg    [AXI_AW-1          : 0]    reg_rec_1_base    ;
-  reg    [AXI_AW-1          : 0]    reg_bs_base       ;
+  reg    [AXI_AW1-1         : 0]    reg_ori_base_high ;
+  reg    [AXI_AW1-1         : 0]    reg_ori_base_low  ;
+  wire   [AXI_AW0-1         : 0]    reg_ori_base      ;
+  reg    [AXI_AW1-1         : 0]    reg_rec_0_base    ;
+  reg    [AXI_AW1-1         : 0]    reg_rec_1_base    ;
+  reg    [AXI_AW1-1         : 0]    reg_bs_base_high  ;
+  reg    [AXI_AW1-1         : 0]    reg_bs_base_low   ;
+  wire   [AXI_AW0-1         : 0]    reg_bs_base       ;
   reg                               reg_done          ;
   reg    [31                : 0]    reg_counter       ;
 
@@ -339,19 +345,19 @@ module h265enc_if(
 
   reg    [1                 : 0]    cur_state_0       ;
   reg    [1                 : 0]    nxt_state_0       ;
-  reg    [AXI_AW-1          : 0]    gen_m0_maddr      ;        
+  reg    [AXI_AW0-1         : 0]    gen_m0_maddr      ;        
   reg                               gen_m0_mread      ;  
   reg    [6                 : 0]    addr_offset_x_0   ;
   reg    [6                 : 0]    addr_offset_y_0   ;
-  reg    [AXI_AW-1          : 0]    addr_offset_bs    ;
+  reg    [AXI_AW0-1         : 0]    addr_offset_bs    ;
   wire                              bs_dump_done_w    ;
 
   reg    [1                 : 0]    cur_state_1       ;
   reg    [1                 : 0]    nxt_state_1       ;
-  reg    [AXI_AW-1          : 0]    gen_m1_maddr      ;        
+  reg    [AXI_AW1-1         : 0]    gen_m1_maddr      ;        
   reg                               gen_m1_mread      ;  
   reg                               gen_m1_mwrite     ;  
-  reg                               gen_m1_mlen       ;
+  reg    [3                 : 0]    gen_m1_mlen       ;
   reg    [6                 : 0]    addr_offset_x_1   ;
   reg    [6                 : 0]    addr_offset_y_1   ;
 
@@ -440,32 +446,39 @@ module h265enc_if(
   // to other register
   always @(posedge axi_clk or negedge axi_rstn) begin
     if( !axi_rstn ) begin
-                          reg_x_total    <= 6 ;
-                          reg_y_total    <= 3 ;
-                          reg_mode       <= 0 ;
-                          reg_qp         <= 0 ;
-                          reg_type       <= 0 ;
-                          reg_min_size   <= 1 ;
-                          reg_ori_base   <= ORI_BASE_ADDR   ;
-                          reg_rec_0_base <= REC_0_BASE_ADDR ;
-                          reg_rec_1_base <= REC_1_BASE_ADDR ;
-                          reg_bs_base    <= BS_BASE_ADDR    ;
+                          reg_x_total        <= 6 ;
+                          reg_y_total        <= 3 ;
+                          reg_mode           <= 0 ;
+                          reg_qp             <= 0 ;
+                          reg_type           <= 0 ;
+                          reg_min_size       <= 1 ;
+                          reg_ori_base_low   <= ORI_BASE_ADDR   ;
+                          reg_ori_base_high  <= 0 ;
+                          reg_rec_0_base     <= REC_0_BASE_ADDR ;
+                          reg_rec_1_base     <= REC_1_BASE_ADDR ;
+                          reg_bs_base_low    <= BS_BASE_ADDR    ;
+                          reg_bs_base_high   <= 0 ;
     end
     else if(s_axi_awvalid & s_axi_awready) begin
       case(s_axi_awaddr[6:2])
-        ADDR_X_TOTAL    : reg_x_total    <= s_axi_wdata ;
-        ADDR_Y_TOTAL    : reg_y_total    <= s_axi_wdata ;
-        ADDR_MODE       : reg_mode       <= s_axi_wdata ;
-        ADDR_QP         : reg_qp         <= s_axi_wdata ;
-        ADDR_TYPE       : reg_type       <= s_axi_wdata ;
-        ADDR_MIN_SIZE   : reg_min_size   <= s_axi_wdata ;
-        ADDR_ORI_BASE   : reg_ori_base   <= s_axi_wdata ;
-        ADDR_REC_0_BASE : reg_rec_0_base <= s_axi_wdata ;
-        ADDR_REC_1_BASE : reg_rec_1_base <= s_axi_wdata ;
-        ADDR_BS_BASE    : reg_bs_base    <= s_axi_wdata ;
+        ADDR_X_TOTAL        : reg_x_total        <= s_axi_wdata ;
+        ADDR_Y_TOTAL        : reg_y_total        <= s_axi_wdata ;
+        //ADDR_MODE       : reg_mode       <= s_axi_wdata ;
+        ADDR_QP             : reg_qp             <= s_axi_wdata ;
+        ADDR_TYPE           : reg_type           <= s_axi_wdata ;
+        //ADDR_MIN_SIZE   : reg_min_size   <= s_axi_wdata ;
+        ADDR_ORI_BASE_HIGH  : reg_ori_base_high  <= s_axi_wdata ;
+        ADDR_ORI_BASE_LOW   : reg_ori_base_low   <= s_axi_wdata ;
+        ADDR_REC_0_BASE     : reg_rec_0_base     <= s_axi_wdata ;
+        ADDR_REC_1_BASE     : reg_rec_1_base     <= s_axi_wdata ;
+        ADDR_BS_BASE_HIGH   : reg_bs_base_high   <= s_axi_wdata ;
+        ADDR_BS_BASE_LOW    : reg_bs_base_low    <= s_axi_wdata ;
       endcase
     end
   end
+
+  assign reg_ori_base = {reg_ori_base_high,reg_ori_base_low};
+  assign reg_bs_base  = {reg_bs_base_high,reg_bs_base_low};
 
   always @(*) begin
                         s_axi_rdata = 0              ;
@@ -475,18 +488,20 @@ module h265enc_if(
 	  ADDR_SNAP_ACTION_TYPE     : s_axi_rdata = i_action_type   ;
 	  ADDR_SNAP_ACTION_VERSION  : s_axi_rdata = i_action_version;
 	  ADDR_SNAP_CONTEXT         : s_axi_rdata = 32'd0           ;
-      ADDR_X_TOTAL    : s_axi_rdata = reg_x_total    ;
-      ADDR_Y_TOTAL    : s_axi_rdata = reg_y_total    ;
-      ADDR_MODE       : s_axi_rdata = reg_mode       ;
-      ADDR_QP         : s_axi_rdata = reg_qp         ;
-      ADDR_TYPE       : s_axi_rdata = reg_type       ;
-      ADDR_MIN_SIZE   : s_axi_rdata = reg_min_size   ;
-      ADDR_ORI_BASE   : s_axi_rdata = reg_ori_base   ;
-      ADDR_REC_0_BASE : s_axi_rdata = reg_rec_0_base ;
-      ADDR_REC_1_BASE : s_axi_rdata = reg_rec_1_base ;
-      ADDR_BS_BASE    : s_axi_rdata = reg_bs_base    ;
-      ADDR_DONE       : s_axi_rdata = reg_done       ;
-      ADDR_COUNTER    : s_axi_rdata = reg_counter    ;
+      ADDR_X_TOTAL              : s_axi_rdata = reg_x_total     ;
+      ADDR_Y_TOTAL              : s_axi_rdata = reg_y_total     ;
+      //ADDR_MODE       : s_axi_rdata = reg_mode       ;
+      ADDR_QP                   : s_axi_rdata = reg_qp          ;
+      ADDR_TYPE                 : s_axi_rdata = reg_type        ;
+      //ADDR_MIN_SIZE   : s_axi_rdata = reg_min_size   ;
+      ADDR_ORI_BASE_HIGH        : s_axi_rdata = reg_ori_base_high;
+      ADDR_ORI_BASE_LOW         : s_axi_rdata = reg_ori_base_low;
+      ADDR_REC_0_BASE           : s_axi_rdata = reg_rec_0_base  ;
+      ADDR_REC_1_BASE           : s_axi_rdata = reg_rec_1_base  ;
+      ADDR_BS_BASE_HIGH         : s_axi_rdata = reg_bs_base_high;
+      ADDR_BS_BASE_LOW          : s_axi_rdata = reg_bs_base_low ;
+      ADDR_DONE                 : s_axi_rdata = reg_done        ;
+      ADDR_COUNTER              : s_axi_rdata = reg_counter     ;
     endcase
   end
 
@@ -842,7 +857,7 @@ module h265enc_if(
   assign gen_m1_mprot    = 3'b000                  ;
   assign gen_m1_mready   = 1                       ;
   assign gen_m1_msize    = 3'b110                  ;
-  assign gen_m1_mwstrb   = 16'hffff_ffff_ffff_ffff ;
+  assign gen_m1_mwstrb   = 64'hffff_ffff_ffff_ffff ;
 
   assign gen_m1_mdata    = data_out_storepix       ;
 

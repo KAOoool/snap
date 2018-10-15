@@ -67,13 +67,13 @@
 static const char* version = GIT_VERSION;
 static  int verbose_level = 0;
 
-static uint64_t get_usec (void)
-{
-	struct timeval t;
-
-	gettimeofday (&t, NULL);
-	return t.tv_sec * 1000000 + t.tv_usec;
-}
+//static uint64_t get_usec (void)
+//{
+//	struct timeval t;
+//
+//	gettimeofday (&t, NULL);
+//	return t.tv_sec * 1000000 + t.tv_usec;
+//}
 
 
 static void* alloc_mem (int align, int size)
@@ -92,14 +92,14 @@ static void* alloc_mem (int align, int size)
 	return a;
 }
 
-static void free_mem (void* a)
-{
-	VERBOSE2 ("Free Mem %p\n", a);
-
-	if (a) {
-		free (a);
-	}
-}
+//static void free_mem (void* a)
+//{
+//	VERBOSE2 ("Free Mem %p\n", a);
+//
+//	if (a) {
+//		free (a);
+//	}
+//}
 
 
 /* Action or Kernel Write and Read are 32 bit MMIO */
@@ -135,12 +135,13 @@ static uint32_t action_read(struct snap_card* h, uint32_t addr)
 /*...*/
 static void action_reg_config (struct snap_card* h,
                        void* src,
-                       void* dest,
+                       void* dest
                        )
 {
     uint32_t reg_x_total = X_TOTAL;
     uint32_t reg_y_total = Y_TOTAL;
     uint32_t qp = QP;
+    uint64_t addr;
 
     VERBOSE0 (" Start register config! \n");
 
@@ -171,11 +172,11 @@ static struct snap_action* get_action (struct snap_card* handle,
 {
 	struct snap_action* act;
 
-	act = snap_attach_action (handle, ACTION_TYPE_HDL_HELLOWORLD,
+	act = snap_attach_action (handle, ACTION_TYPE_HDL_H265ENC,
 							  flags, timeout);
 
 	if (NULL == act) {
-		VERBOSE0 ("Error: Can not attach Action: %x\n", ACTION_TYPE_HDL_HELLOWORLD);
+		VERBOSE0 ("Error: Can not attach Action: %x\n", ACTION_TYPE_HDL_H265ENC);
 		VERBOSE0 ("	   Try to run snap_main tool\n");
 	}
 
@@ -355,8 +356,8 @@ __exit1:
 	VERBOSE2 ("Free Card Handle: %p\n", dn);
 	snap_card_free (dn);
 
-	free_mem(patt_src_base);
-	free_mem(patt_tgt_base);
+	//free_mem(patt_src_base);
+	//free_mem(patt_tgt_base);
 
 	VERBOSE1 ("End of Test rc: %d\n", rc);
 	return rc;

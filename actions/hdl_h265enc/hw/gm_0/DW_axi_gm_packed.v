@@ -30,7 +30,7 @@
 // Values:       32, ..., 64
 // 
 // Address width on AXI and GIF interfaces.
-`define GM_AW 32
+`define GM_AW 64
 
 
 // Name:         GM_DW
@@ -47,7 +47,7 @@
 // Values:       1 2 3 4 5 6 7 8 9 10 11 12
 // 
 // Width of transaction ID field of the AXI and GIF interface.
-`define GM_ID 4
+`define GM_ID 1
 
 
 // Name:         GM_BW

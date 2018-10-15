@@ -124,9 +124,10 @@ module h265enc_top_with_axi(
 //*** PARAMETER DECLARATION ****************************************************
 
   parameter    AXI_DW                = 512          ,
-               AXI_AW                = 32           ,
-               AXI_MIDW              = 4            ,
-               AXI_SIDW              = 8            ;
+               AXI_AW0               = 64           ,
+               AXI_AW1               = 32           ,
+               AXI_MIDW              = 1            ,
+               AXI_SIDW              = 1            ;
 
   parameter    AXI_WID               = 0            ,
                AXI_RID               = 0            ;
@@ -171,7 +172,7 @@ module h265enc_top_with_axi(
   input  [1                 : 0]     axi_m0_rresp   ;
   input                              axi_m0_rvalid  ;
   input                              axi_m0_wready  ;
-  output [AXI_AW-1          : 0]     axi_m0_araddr  ;
+  output [AXI_AW0-1         : 0]     axi_m0_araddr  ;
   output [1                 : 0]     axi_m0_arburst ;
   output [3                 : 0]     axi_m0_arcache ;
   output [AXI_SIDW-1        : 0]     axi_m0_arid    ;
@@ -180,7 +181,7 @@ module h265enc_top_with_axi(
   output [2                 : 0]     axi_m0_arprot  ;
   output [2                 : 0]     axi_m0_arsize  ;
   output                             axi_m0_arvalid ;
-  output [AXI_AW-1          : 0]     axi_m0_awaddr  ;
+  output [AXI_AW0-1         : 0]     axi_m0_awaddr  ;
   output [1                 : 0]     axi_m0_awburst ;
   output [3                 : 0]     axi_m0_awcache ;
   output [AXI_SIDW-1        : 0]     axi_m0_awid    ;
@@ -208,7 +209,7 @@ module h265enc_top_with_axi(
   input  [1                 : 0]     axi_m1_rresp   ;
   input                              axi_m1_rvalid  ;
   input                              axi_m1_wready  ;
-  output [AXI_AW-1          : 0]     axi_m1_araddr  ;
+  output [AXI_AW1-1         : 0]     axi_m1_araddr  ;
   output [1                 : 0]     axi_m1_arburst ;
   output [3                 : 0]     axi_m1_arcache ;
   output [AXI_SIDW-1        : 0]     axi_m1_arid    ;
@@ -217,7 +218,7 @@ module h265enc_top_with_axi(
   output [2                 : 0]     axi_m1_arprot  ;
   output [2                 : 0]     axi_m1_arsize  ;
   output                             axi_m1_arvalid ;
-  output [AXI_AW-1          : 0]     axi_m1_awaddr  ;
+  output [AXI_AW1-1         : 0]     axi_m1_awaddr  ;
   output [1                 : 0]     axi_m1_awburst ;
   output [3                 : 0]     axi_m1_awcache ;
   output [AXI_SIDW-1        : 0]     axi_m1_awid    ;
@@ -264,7 +265,7 @@ module h265enc_top_with_axi(
   wire   [7                 : 0]     bs_dat         ;
 
   // gen_m0
-  wire   [AXI_AW-1          : 0]     gen_m0_maddr   ;
+  wire   [AXI_AW0-1         : 0]     gen_m0_maddr   ;
   wire   [1                 : 0]     gen_m0_mburst  ;
   wire   [3                 : 0]     gen_m0_mcache  ;
   wire   [AXI_DW-1          : 0]     gen_m0_mdata   ;
@@ -285,7 +286,7 @@ module h265enc_top_with_axi(
   wire                               gen_m0_svalid  ;
 
   // gen_m1 
-  wire   [AXI_AW-1          : 0]     gen_m1_maddr   ;
+  wire   [AXI_AW1-1         : 0]     gen_m1_maddr   ;
   wire   [1                 : 0]     gen_m1_mburst  ;
   wire   [3                 : 0]     gen_m1_mcache  ;
   wire   [AXI_DW-1          : 0]     gen_m1_mdata   ;
@@ -395,8 +396,8 @@ module h265enc_top_with_axi(
     .extif_rden_o      ( extif_rd_ena      ),
     .extif_data_o      ( extif_wr_dat      ),
     .extif_data_i      ( extif_rd_dat      ),
-	.i_action_type     ( 32'h00000000      ),
-	.i_action_version  ( 32'h00000000      ),
+	.i_action_type     ( 32'h00000001      ),
+	.i_action_version  ( 32'h00000001      ),
     // bs
     .bs_val_i          ( bs_val            ),
     .bs_dat_i          ( bs_dat            )

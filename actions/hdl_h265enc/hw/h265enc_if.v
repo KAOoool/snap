@@ -137,9 +137,9 @@ module h265enc_if(
                INTER                = 1               ;
                                                      
   parameter    AXI_DW               = 512             ,
-               AXI_AW               = 32              ,
-               AXI_MIDW             = 4               ,
-               AXI_SIDW             = 8               ;
+               AXI_AW0              = 64              ,
+               AXI_AW1              = 32              ,
+               AXI_MIDW             = 0               ;
 
   parameter    AXI_WID              = 0               ,
                AXI_RID              = 0               ;
@@ -223,7 +223,7 @@ module h265enc_if(
   output                            pre_min_size_o    ;
 
   // gen_m0 (cur pix & bs)
-  output [AXI_AW-1          : 0]    gen_m0_maddr      ;
+  output [AXI_AW0-1         : 0]    gen_m0_maddr      ;
   output [1                 : 0]    gen_m0_mburst     ;
   output [3                 : 0]    gen_m0_mcache     ;
   output [AXI_DW-1          : 0]    gen_m0_mdata      ;
@@ -244,7 +244,7 @@ module h265enc_if(
   input                             gen_m0_svalid     ;
 
   // gen_m1 (ref pix)
-  output [AXI_AW-1          : 0]    gen_m1_maddr      ;
+  output [AXI_AW1-1         : 0]    gen_m1_maddr      ;
   output [1                 : 0]    gen_m1_mburst     ;
   output [3                 : 0]    gen_m1_mcache     ;
   output [AXI_DW-1          : 0]    gen_m1_mdata      ;
@@ -303,10 +303,10 @@ module h265enc_if(
   reg    [5                 : 0]    reg_qp            ;
   reg                               reg_type          ;
   reg                               reg_min_size      ;
-  reg    [AXI_AW-1          : 0]    reg_ori_base      ;
-  reg    [AXI_AW-1          : 0]    reg_rec_0_base    ;
-  reg    [AXI_AW-1          : 0]    reg_rec_1_base    ;
-  reg    [AXI_AW-1          : 0]    reg_bs_base       ;
+  reg    [AXI_AW0-1         : 0]    reg_ori_base      ;
+  reg    [AXI_AW1-1         : 0]    reg_rec_0_base    ;
+  reg    [AXI_AW1-1         : 0]    reg_rec_1_base    ;
+  reg    [AXI_AW0-1         : 0]    reg_bs_base       ;
   reg                               reg_done          ;
   reg    [31                : 0]    reg_counter       ;
 
@@ -339,19 +339,19 @@ module h265enc_if(
 
   reg    [1                 : 0]    cur_state_0       ;
   reg    [1                 : 0]    nxt_state_0       ;
-  reg    [AXI_AW-1          : 0]    gen_m0_maddr      ;        
+  reg    [AXI_AW0-1         : 0]    gen_m0_maddr      ;        
   reg                               gen_m0_mread      ;  
   reg    [6                 : 0]    addr_offset_x_0   ;
   reg    [6                 : 0]    addr_offset_y_0   ;
-  reg    [AXI_AW-1          : 0]    addr_offset_bs    ;
+  reg    [AXI_AW0-1         : 0]    addr_offset_bs    ;
   wire                              bs_dump_done_w    ;
 
   reg    [1                 : 0]    cur_state_1       ;
   reg    [1                 : 0]    nxt_state_1       ;
-  reg    [AXI_AW-1          : 0]    gen_m1_maddr      ;        
+  reg    [AXI_AW1-1         : 0]    gen_m1_maddr      ;        
   reg                               gen_m1_mread      ;  
   reg                               gen_m1_mwrite     ;  
-  reg                               gen_m1_mlen       ;
+  reg    [3                 : 0]    gen_m1_mlen       ;
   reg    [6                 : 0]    addr_offset_x_1   ;
   reg    [6                 : 0]    addr_offset_y_1   ;
 
@@ -842,7 +842,7 @@ module h265enc_if(
   assign gen_m1_mprot    = 3'b000                  ;
   assign gen_m1_mready   = 1                       ;
   assign gen_m1_msize    = 3'b110                  ;
-  assign gen_m1_mwstrb   = 16'hffff_ffff_ffff_ffff ;
+  assign gen_m1_mwstrb   = 64'hffff_ffff_ffff_ffff ;
 
   assign gen_m1_mdata    = data_out_storepix       ;
 

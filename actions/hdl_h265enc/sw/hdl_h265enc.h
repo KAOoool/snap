@@ -22,7 +22,7 @@
  * The ACTION control bits are defined in the following file.
  */
 //#include <snap_hls_if.h>
-#define ACTION_TYPE_Example     0x10140000	/* Action Type */
+#define ACTION_TYPE_HDL_H265ENC 0x00000001	/* Action Type */
 
 #define REG_START               0x34	
 #define REG_X_TOTAL             0x38

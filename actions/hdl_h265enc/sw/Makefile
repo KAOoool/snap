@@ -38,7 +38,7 @@ $(error Please make sure that $$SNAP_ROOT is set up correctly.)
 endif
 endif
 
-projs += snap_h265enc
+projs += hdl_h265enc
 
 # If you have the host code outside of the default snap directory structure, 
 # change to /path/to/snap/actions/software.mk

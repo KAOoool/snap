@@ -32,6 +32,7 @@
 #include <snap_s_regs.h>
 
 #include "hdl_h265enc.h"
+#include "h265enc_config.h"
 
 /*  defaults */
 #define ACTION_WAIT_TIME	10   /* Default in sec */
@@ -67,13 +68,13 @@
 static const char* version = GIT_VERSION;
 static  int verbose_level = 0;
 
-//static uint64_t get_usec (void)
-//{
-//	struct timeval t;
-//
-//	gettimeofday (&t, NULL);
-//	return t.tv_sec * 1000000 + t.tv_usec;
-//}
+static uint64_t get_usec (void)
+{
+	struct timeval t;
+
+	gettimeofday (&t, NULL);
+	return t.tv_sec * 1000000 + t.tv_usec;
+}
 
 
 static void* alloc_mem (int align, int size)
@@ -167,6 +168,74 @@ static void action_reg_config (struct snap_card* h,
     return;
 }
 
+static int do_action (struct snap_card* dnc,
+                    void* src,
+                    void* dest,
+                    uint64_t* elapsed
+                    )
+{
+    int rc;
+    uint64_t t_start;   /* time in usec */
+    uint64_t td = 0;    /* Diff time in usec */
+
+    rc = 0;
+
+    int frame_cnt;
+    uint32_t bs_length = 0 ;
+    uint32_t rec_0_base = REC_0_BASE;
+    uint32_t rec_1_base = REC_1_BASE; 
+
+    action_reg_config (dnc, src, dest);
+
+    t_start = get_usec();
+
+    for(frame_cnt = 0; frame_cnt < 1; frame_cnt++) {
+        printf("frame number: %d; ", frame_cnt);
+
+        // start enc
+        if( (frame_cnt%GOP_LENGTH)==0 ) {
+            action_write(dnc, REG_TYPE, 0X00000000);
+        }
+        else {
+            action_write(dnc, REG_TYPE, 0X00000001);
+        }
+        if( ((frame_cnt%GOP_LENGTH)%2)==0 ) {
+            action_write(dnc, REG_REC_0_BASE, rec_0_base);
+            action_write(dnc, REG_REC_1_BASE, rec_1_base);
+        }
+        else {
+            action_write(dnc, REG_REC_0_BASE, rec_1_base);
+            action_write(dnc, REG_REC_1_BASE, rec_0_base);
+        }
+        action_write(dnc, REG_START, 0X00000001);
+
+        // Poll status for done signal
+
+        while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 1) {
+	    ;
+        }
+
+        while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 0) {
+	    ;
+        }
+
+        VERBOSE0 ("One frame encoded!\n");
+
+        // get bs length
+        bs_length = action_read(dnc, COUNT_A);
+        VERBOSE0 ("bs_length: 0x%x\n", bs_length);
+    }
+
+    td = get_usec() - t_start;
+    *elapsed = td;
+
+    if (0 != rc) {
+        return rc;
+    }
+
+    return rc;
+}
+
 static struct snap_action* get_action (struct snap_card* handle,
 									   snap_action_flag_t flags, int timeout)
 {
@@ -212,17 +281,13 @@ int main (int argc, char* argv[])
 	snap_action_flag_t attach_flags = 0;
 	struct snap_action* act = NULL;
 	unsigned long ioctl_data;
-	int patt_size = 4096*10;
-	void* src = alloc_mem(64, patt_size);
-	void* dest = alloc_mem(64, patt_size);
-
-        uint32_t ori_base_high;
-        uint32_t ori_base_low;
-        uint32_t bs_base_high;
-        uint32_t bs_base_low;
-        uint32_t y_total;
-        uint32_t x_total;
-        uint32_t qp;  
+	int patt_size = FRAMEWIDTH*FRAMEHEIGHT*1.5;
+        int frame_num = 1;
+	void* src  = alloc_mem(64, patt_size*frame_num);
+	void* dest = alloc_mem(64, patt_size*frame_num);
+	uint64_t td;
+        FILE * fp;
+        int frame_read;
 
 	while (1) {
 		int option_index = 0;
@@ -274,6 +339,13 @@ int main (int argc, char* argv[])
 		}
 	}
 
+        if ((fp = fopen("/home/ytw/h265/snap/actions/hdl_h265enc/sw/fetch_i_cur.yuv","rb"))==NULL) {
+                VERBOSE0("ERROR: no file!\n");
+                return -1;
+        }
+        frame_read = fread(src, patt_size, frame_num, fp);
+        VERBOSE0 ("The number of frames read: %d\n",frame_read);
+
 	VERBOSE2 ("Open Card: %d\n", card_no);
 	sprintf (device, "/dev/cxl/afu%d.0s", card_no);
 	dn = snap_card_alloc_dev (device, SNAP_VENDOR_ID_IBM, SNAP_DEVICE_ID_SNAP);
@@ -323,29 +395,10 @@ int main (int argc, char* argv[])
 
 	VERBOSE0 ("Finish get action.\n");
 
-	VERBOSE0 ("Check reg.\n");
+    	VERBOSE0 ("Start H265 Encoding.\n");
+    	rc = do_action (dn, src, dest, &td);
 
-        action_reg_config(dn,src,dest);
-        // source address
-        ori_base_high = action_read(dn, REG_ORI_BASE_HIGH);
-        ori_base_low = action_read(dn, REG_ORI_BASE_LOW);
-
-        // target address    
-        bs_base_high = action_read(dn, REG_BS_BASE_HIGH);   
-        bs_base_low = action_read(dn, REG_BS_BASE_LOW); 
-
-        //x_total, y_total, qp
-        x_total = action_read(dn, REG_X_TOTAL);
-        y_total = action_read(dn, REG_Y_TOTAL);
-        qp = action_read(dn, REG_QP);
-
-	VERBOSE0("ori_base_high:0X%X\n", ori_base_high);
-	VERBOSE0("ori_base_low:0X%X\n", ori_base_low);
-	VERBOSE0("bs_base_high:0X%X\n", bs_base_high);
-	VERBOSE0("bs_base_low:0X%X\n", bs_base_low);
-	VERBOSE0("x_total:0X%X\n", x_total);
-	VERBOSE0("y_total:0X%X\n", y_total);
-	VERBOSE0("qp:0X%X\n", qp);
+        fclose(fp);
 
 	snap_detach_action (act);
 

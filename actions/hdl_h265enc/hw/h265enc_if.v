@@ -580,7 +580,7 @@ module h265enc_if(
       );
   `endif
 
-    assign fifo_rstn_loadpix = extif_done_w || !axi_rstn;
+    assign fifo_rstn_loadpix = reg_start || !axi_rstn;
     assign push_req_loadpix  = extif_mode_cur ? (gen_m0_svalid & (gen_m0_sresp==0)) : (gen_m1_svalid & (gen_m1_sresp==0)) ;
     assign pop_req_loadpix   = !empty_loadpix ;
 
@@ -608,9 +608,9 @@ module h265enc_if(
     fifo_storepix fifo_storepix  
       .aclr             ( fifo_rstn_storepix  ),
       .data             ( data_in_storepix    ),
-      .rdclk            ( enc_clk             ),
+      .rdclk            ( axi_clk             ),
       .rdreq            ( pop_req_storepix    ),
-      .wrclk            ( axi_clk             ),
+      .wrclk            ( enc_clk             ),
       .wrreq            ( push_req_storepix   ),
       .q                ( data_out_storepix   ),
       .rdempty          ( empty_storepix      )
@@ -626,8 +626,8 @@ module h265enc_if(
                                };
     fifo_128_512 fifo_storepix(
       .rst              ( fifo_rstn_storepix  ),
-      .wr_clk           ( axi_clk             ),
-      .rd_clk           ( enc_clk             ),
+      .wr_clk           ( enc_clk             ),
+      .rd_clk           ( axi_clk             ),
       .din              ( data_in_storepix    ),
       .wr_en            ( push_req_storepix   ),
       .rd_en            ( pop_req_storepix    ),
@@ -636,7 +636,7 @@ module h265enc_if(
       );
   `endif
 
-  assign fifo_rstn_storepix = extif_done_w || !axi_rstn;
+  assign fifo_rstn_storepix = reg_start || !axi_rstn;
   assign push_req_storepix = (cur_state_1 == REQ) && (rden_cnter <= rden_cnter_thre) && ((extif_mode_i==STORE_DB_LUMA)||(extif_mode_i==STORE_DB_CHROMA));
   assign pop_req_storepix  = gen_m1_mwrite & gen_m1_saccept ;
   assign data_in_storepix  = { extif_data_i[007:000]
@@ -662,9 +662,9 @@ module h265enc_if(
     fifo_bs fifo_bs(  
       .aclr             ( fifo_rstn_bs              ),
       .data             ( bs_dat_i                  ),
-      .rdclk            ( enc_clk                   ),
+      .rdclk            ( axi_clk                   ),
       .rdreq            ( pop_req_bs                ),
-      .wrclk            ( axi_clk                   ),
+      .wrclk            ( enc_clk                   ),
       .wrreq            ( bs_val_i | bs_valid_extra ),
       .q                ( data_out_bs               ),
       .rdempty          ( empty_bs                  )
@@ -684,8 +684,8 @@ module h265enc_if(
                          };
     fifo_8_512 fifo_bs(
       .rst              ( fifo_rstn_bs              ),
-      .wr_clk           ( axi_clk                   ),
-      .rd_clk           ( enc_clk                   ),
+      .wr_clk           ( enc_clk                   ),
+      .rd_clk           ( axi_clk                   ),
       .din              ( bs_dat_i                  ),
       .wr_en            ( bs_val_i | bs_valid_extra ),
       .rd_en            ( pop_req_bs                ),
@@ -694,7 +694,7 @@ module h265enc_if(
       );
   `endif
 
-  assign fifo_rstn_bs = reg_done && !axi_rstn ;
+  assign fifo_rstn_bs = reg_start || !axi_rstn ;
 
 //*** gm0 ****************************************************************
 
@@ -1265,9 +1265,23 @@ module h265enc_if(
       if ( sys_start_enc )
         reg_done <= 0;
       else
-        if ( sys_done_1 & !empty_bs )
+        if ( sys_done_1 & empty_bs )
           reg_done <= 1;
     end
+  end
+
+  //always @(posedge enc_clk) begin
+  //  if( bs_val_i == 1'b1 )
+  //    $display ("bs_dat = %h",bs_dat_i);
+  //end
+
+  always @(posedge axi_clk) begin
+    if( pop_req_bs == 1'b1 )
+      $display ("bs_out = %h", data_out_bs_w);
+  end
+
+  always @(posedge sys_done_i) begin
+      $display ("encoder done!");
   end
 
 endmodule

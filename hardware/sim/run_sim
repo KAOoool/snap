@@ -27,7 +27,7 @@
  PARM_FILE=""			# overwrite pslse.parms
  TST_TITLE=""			# suffix for simout_directory to identify testcase
  LOCAL=0			# 1=create simout locally in /data
- AET=1   			# 1=create AET
+ AET=0   			# 1=create AET
  VERBOSE="-v"			# verbosity for testcases
  CLEAN=0			# 1=wipe simout directory, if all tests succesful
  TCL_SEED=0			# 0=use random seed, others are set into random.tcl

@@ -672,15 +672,25 @@ module h265enc_if(
   `endif
   `ifdef XILINX
     wire [AXI_DW-1          : 0] data_out_bs_w;
+    //assign data_out_bs = {
+    //                      data_out_bs_w[  7:  0],data_out_bs_w[ 15:  8],data_out_bs_w[ 23: 16],data_out_bs_w[ 31: 24],data_out_bs_w[ 39: 32],data_out_bs_w[ 47: 40],data_out_bs_w[ 55: 48],data_out_bs_w[ 63: 56],
+    //                      data_out_bs_w[ 71: 64],data_out_bs_w[ 79: 72],data_out_bs_w[ 87: 80],data_out_bs_w[ 95: 88],data_out_bs_w[103: 96],data_out_bs_w[111:104],data_out_bs_w[119:112],data_out_bs_w[127:120],
+    //                      data_out_bs_w[135:128],data_out_bs_w[143:136],data_out_bs_w[151:144],data_out_bs_w[159:152],data_out_bs_w[167:160],data_out_bs_w[175:168],data_out_bs_w[183:176],data_out_bs_w[191:184],
+    //                      data_out_bs_w[199:192],data_out_bs_w[207:200],data_out_bs_w[215:208],data_out_bs_w[223:216],data_out_bs_w[231:224],data_out_bs_w[239:232],data_out_bs_w[247:240],data_out_bs_w[255:248],
+    //                      data_out_bs_w[263:256],data_out_bs_w[271:264],data_out_bs_w[279:272],data_out_bs_w[287:280],data_out_bs_w[295:288],data_out_bs_w[303:296],data_out_bs_w[311:304],data_out_bs_w[319:312],
+    //                      data_out_bs_w[327:320],data_out_bs_w[335:328],data_out_bs_w[343:336],data_out_bs_w[351:344],data_out_bs_w[359:352],data_out_bs_w[367:360],data_out_bs_w[375:368],data_out_bs_w[383:376],
+    //                      data_out_bs_w[391:384],data_out_bs_w[399:392],data_out_bs_w[407:400],data_out_bs_w[415:408],data_out_bs_w[423:416],data_out_bs_w[431:424],data_out_bs_w[439:432],data_out_bs_w[447:440],
+    //                      data_out_bs_w[455:448],data_out_bs_w[463:456],data_out_bs_w[471:464],data_out_bs_w[479:472],data_out_bs_w[487:480],data_out_bs_w[495:488],data_out_bs_w[503:496],data_out_bs_w[511:504]
+    //                     };
     assign data_out_bs = {
-                          data_out_bs_w[  7:  0],data_out_bs_w[ 15:  8],data_out_bs_w[ 23: 16],data_out_bs_w[ 31: 24],data_out_bs_w[ 39: 32],data_out_bs_w[ 47: 40],data_out_bs_w[ 55: 48],data_out_bs_w[ 63: 56],
-                          data_out_bs_w[ 71: 64],data_out_bs_w[ 79: 72],data_out_bs_w[ 87: 80],data_out_bs_w[ 95: 88],data_out_bs_w[103: 96],data_out_bs_w[111:104],data_out_bs_w[119:112],data_out_bs_w[127:120],
-                          data_out_bs_w[135:128],data_out_bs_w[143:136],data_out_bs_w[151:144],data_out_bs_w[159:152],data_out_bs_w[167:160],data_out_bs_w[175:168],data_out_bs_w[183:176],data_out_bs_w[191:184],
-                          data_out_bs_w[199:192],data_out_bs_w[207:200],data_out_bs_w[215:208],data_out_bs_w[223:216],data_out_bs_w[231:224],data_out_bs_w[239:232],data_out_bs_w[247:240],data_out_bs_w[255:248],
-                          data_out_bs_w[263:256],data_out_bs_w[271:264],data_out_bs_w[279:272],data_out_bs_w[287:280],data_out_bs_w[295:288],data_out_bs_w[303:296],data_out_bs_w[311:304],data_out_bs_w[319:312],
-                          data_out_bs_w[327:320],data_out_bs_w[335:328],data_out_bs_w[343:336],data_out_bs_w[351:344],data_out_bs_w[359:352],data_out_bs_w[367:360],data_out_bs_w[375:368],data_out_bs_w[383:376],
-                          data_out_bs_w[391:384],data_out_bs_w[399:392],data_out_bs_w[407:400],data_out_bs_w[415:408],data_out_bs_w[423:416],data_out_bs_w[431:424],data_out_bs_w[439:432],data_out_bs_w[447:440],
-                          data_out_bs_w[455:448],data_out_bs_w[463:456],data_out_bs_w[471:464],data_out_bs_w[479:472],data_out_bs_w[487:480],data_out_bs_w[495:488],data_out_bs_w[503:496],data_out_bs_w[511:504]
+                          data_out_bs_w[ 63: 56],data_out_bs_w[ 55: 48],data_out_bs_w[ 47: 40],data_out_bs_w[ 39: 32],data_out_bs_w[ 31: 24],data_out_bs_w[ 23: 16],data_out_bs_w[ 15:  8],data_out_bs_w[  7:  0],
+                          data_out_bs_w[127:120],data_out_bs_w[119:112],data_out_bs_w[111:104],data_out_bs_w[103: 96],data_out_bs_w[ 95: 88],data_out_bs_w[ 87: 80],data_out_bs_w[ 79: 72],data_out_bs_w[ 71: 64],
+                          data_out_bs_w[191:184],data_out_bs_w[183:176],data_out_bs_w[175:168],data_out_bs_w[167:160],data_out_bs_w[159:152],data_out_bs_w[151:144],data_out_bs_w[143:136],data_out_bs_w[135:128],
+                          data_out_bs_w[255:248],data_out_bs_w[247:240],data_out_bs_w[239:232],data_out_bs_w[231:224],data_out_bs_w[223:216],data_out_bs_w[215:208],data_out_bs_w[207:200],data_out_bs_w[199:192],
+                          data_out_bs_w[319:312],data_out_bs_w[311:304],data_out_bs_w[303:296],data_out_bs_w[295:288],data_out_bs_w[287:280],data_out_bs_w[279:272],data_out_bs_w[271:264],data_out_bs_w[263:256],
+                          data_out_bs_w[383:376],data_out_bs_w[375:368],data_out_bs_w[367:360],data_out_bs_w[359:352],data_out_bs_w[351:344],data_out_bs_w[343:336],data_out_bs_w[335:328],data_out_bs_w[327:320],
+                          data_out_bs_w[447:440],data_out_bs_w[439:432],data_out_bs_w[431:424],data_out_bs_w[423:416],data_out_bs_w[415:408],data_out_bs_w[407:400],data_out_bs_w[399:392],data_out_bs_w[391:384],
+                          data_out_bs_w[511:504],data_out_bs_w[503:496],data_out_bs_w[495:488],data_out_bs_w[487:480],data_out_bs_w[479:472],data_out_bs_w[471:464],data_out_bs_w[463:456],data_out_bs_w[455:448]
                          };
     fifo_8_512 fifo_bs(
       .rst              ( fifo_rstn_bs              ),

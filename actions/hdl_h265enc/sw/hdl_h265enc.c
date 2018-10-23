@@ -178,12 +178,20 @@ static int do_action (struct snap_card* dnc,
     uint64_t t_start;   /* time in usec */
     uint64_t td = 0;    /* Diff time in usec */
 
+    FILE* fp1;
+    int bs_write1;
+
     rc = 0;
 
     int frame_cnt;
     uint32_t bs_length = 0 ;
     uint32_t rec_0_base = REC_0_BASE;
     uint32_t rec_1_base = REC_1_BASE; 
+
+    if ((fp1 = fopen("/home/ytw/h265/snap/actions/hdl_h265enc/sw/bs1.dat","wb"))==NULL) {
+            VERBOSE0("ERROR: Fail to create bs1 file!\n");
+            return -1;
+    } 
 
     action_reg_config (dnc, src, dest);
 
@@ -224,6 +232,11 @@ static int do_action (struct snap_card* dnc,
         // get bs length
         bs_length = action_read(dnc, COUNT_A);
         VERBOSE0 ("bs_length: 0x%x\n", bs_length);
+
+        bs_write1 = fwrite(dest, 1, bs_length, fp1);
+        VERBOSE0 ("The number of byte writen: %d\n",bs_write1);
+
+        fclose(fp1);
     }
 
     td = get_usec() - t_start;
@@ -286,7 +299,8 @@ int main (int argc, char* argv[])
 	void* src  = alloc_mem(64, patt_size*frame_num);
 	void* dest = alloc_mem(64, patt_size*frame_num);
 	uint64_t td;
-        FILE * fp;
+
+        FILE* fp;
         int frame_read;
 
 	while (1) {
@@ -343,6 +357,7 @@ int main (int argc, char* argv[])
                 VERBOSE0("ERROR: no file!\n");
                 return -1;
         }
+       
         frame_read = fread(src, patt_size, frame_num, fp);
         VERBOSE0 ("The number of frames read: %d\n",frame_read);
 

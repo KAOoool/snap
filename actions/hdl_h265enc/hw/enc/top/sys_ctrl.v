@@ -133,7 +133,7 @@ module sys_ctrl(
                                      SA    = 1+10          ;
 
   localparam                         INTRA = 0             ,
-                                     INTEL = 1             ;
+                                     INTER = 1             ;
 
 
 //*** INPUT/OUTPUT DECLARATION *************************************************
@@ -264,7 +264,7 @@ module sys_ctrl(
   always @(*) begin
     if( cur_state==IDLE )
       enc_start_w = sys_start_i ;
-    else if( nxt_state==IDLE )
+    else if( ((sys_type_i==INTRA)&&(cur_state==S8)) || ((sys_type_i==INTER)&&(cur_state==SA)) )
       enc_start_w = 0 ;
     else begin
       enc_start_w = enc_done_r ;

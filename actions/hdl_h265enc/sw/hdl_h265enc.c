@@ -134,39 +134,6 @@ static uint32_t action_read(struct snap_card* h, uint32_t addr)
  */
 
 /*...*/
-static void action_reg_config (struct snap_card* h,
-                       void* src,
-                       void* dest
-                       )
-{
-    uint32_t reg_x_total = X_TOTAL;
-    uint32_t reg_y_total = Y_TOTAL;
-    uint32_t qp = QP;
-    uint64_t addr;
-
-    VERBOSE0 (" Start register config! \n");
-
-    // source address
-    addr = (uint64_t)src;
-    action_write(h, REG_ORI_BASE_HIGH, (uint32_t)(addr >> 32));
-    action_write(h, REG_ORI_BASE_LOW, (uint32_t)(addr & 0xffffffff));
-    VERBOSE1 (" Write REG_ORI_BASE done! \n");
-
-    // target address
-    addr = (uint64_t)dest;      
-    action_write(h, REG_BS_BASE_HIGH, (uint32_t)(addr >> 32));   
-    action_write(h, REG_BS_BASE_LOW, (uint32_t)(addr & 0xffffffff)); 
-    VERBOSE1 (" Write REG_BS_BASE done! \n");
-
-    //x_total, y_total, qp
-    action_write(h, REG_X_TOTAL, reg_x_total);
-    action_write(h, REG_Y_TOTAL, reg_y_total);
-    action_write(h, REG_QP, qp);
-
-    VERBOSE1 (" Register config done! \n");
-
-    return;
-}
 
 static int do_action (struct snap_card* dnc,
                     void* src,
@@ -188,18 +155,45 @@ static int do_action (struct snap_card* dnc,
     uint32_t rec_0_base = REC_0_BASE;
     uint32_t rec_1_base = REC_1_BASE; 
 
-    if ((fp1 = fopen("/home/ytw/h265/snap/actions/hdl_h265enc/sw/bs1.dat","wb"))==NULL) {
+    if ((fp1 = fopen("/root/snap/actions/hdl_h265enc/sw/bs1.dat","wb"))==NULL) {
             VERBOSE0("ERROR: Fail to create bs1 file!\n");
             return -1;
     } 
 
-    action_reg_config (dnc, src, dest);
+    uint32_t reg_x_total = X_TOTAL;
+    uint32_t reg_y_total = Y_TOTAL;
+    uint32_t qp = QP;
+    uint64_t addr;
 
+    VERBOSE0 (" Start register config! \n");
+
+    // source address
+    addr = (uint64_t)src;
+    action_write(dnc, REG_ORI_BASE_HIGH, (uint32_t)(addr >> 32));
+    action_write(dnc, REG_ORI_BASE_LOW, (uint32_t)(addr & 0xffffffff));
+    VERBOSE1 (" Write REG_ORI_BASE done! \n");
+
+    // target address
+    addr = (uint64_t)dest;      
+    action_write(dnc, REG_BS_BASE_HIGH, (uint32_t)(addr >> 32));   
+    action_write(dnc, REG_BS_BASE_LOW, (uint32_t)(addr & 0xffffffff)); 
+    VERBOSE1 (" Write REG_BS_BASE done! \n");
+
+    //x_total, y_total, qp
+    action_write(dnc, REG_X_TOTAL, reg_x_total);
+    action_write(dnc, REG_Y_TOTAL, reg_y_total);
+    action_write(dnc, REG_QP, qp);
+
+    VERBOSE1 (" Register config done! \n");
+
+    VERBOSE1(" test!\n ");
     t_start = get_usec();
 
+    VERBOSE1(" test!\n ");
     for(frame_cnt = 0; frame_cnt < 1; frame_cnt++) {
-        printf("frame number: %d; ", frame_cnt);
+        VERBOSE0(" frame number: %d\n", frame_cnt);
 
+        VERBOSE1(" test!\n ");
         // start enc
         if( (frame_cnt%GOP_LENGTH)==0 ) {
             action_write(dnc, REG_TYPE, 0X00000000);
@@ -219,10 +213,12 @@ static int do_action (struct snap_card* dnc,
 
         // Poll status for done signal
 
+        VERBOSE1(" test!\n ");
         while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 1) {
 	    ;
         }
 
+        VERBOSE0 ("Done!\n");
         while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 0) {
 	    ;
         }
@@ -236,8 +232,9 @@ static int do_action (struct snap_card* dnc,
         bs_write1 = fwrite(dest, 1, bs_length, fp1);
         VERBOSE0 ("The number of byte writen: %d\n",bs_write1);
 
-        fclose(fp1);
     }
+        
+    fclose(fp1);
 
     td = get_usec() - t_start;
     *elapsed = td;
@@ -353,7 +350,7 @@ int main (int argc, char* argv[])
 		}
 	}
 
-        if ((fp = fopen("/home/ytw/h265/snap/actions/hdl_h265enc/sw/fetch_i_cur.yuv","rb"))==NULL) {
+        if ((fp = fopen("/root/snap/actions/hdl_h265enc/sw/fetch_i_cur.yuv","rb"))==NULL) {
                 VERBOSE0("ERROR: no file!\n");
                 return -1;
         }

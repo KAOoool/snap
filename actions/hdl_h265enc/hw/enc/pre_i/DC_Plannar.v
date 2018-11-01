@@ -4,6 +4,7 @@
 // creat:2014-9-16
 // modify:2015-1-9
 //==================================
+`timescale 1ns/100ps
 module dc_planar(
 	rstn,
 	clk,

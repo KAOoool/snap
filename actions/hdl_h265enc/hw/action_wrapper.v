@@ -197,6 +197,7 @@ module action_wrapper #(
     wire [3:0] w_axi_card_mem0_awlen;
     wire [31:0] w_axi_card_mem0_awaddr;
     wire [31:0] w_axi_card_mem0_araddr;
+	wire        clk_100MHz;
 
     // Make wuser stick to 0
     assign m_axi_card_mem0_wuser = 0;
@@ -225,10 +226,17 @@ module action_wrapper #(
     assign m_axi_card_mem0_araddr = {1'b0,w_axi_card_mem0_araddr};
     assign m_axi_card_mem0_awaddr = {1'b0,w_axi_card_mem0_awaddr};
 
+    clk_wiz_h265 pll_h265(
+        .clk_in1            (clk_125MHz),
+		.clk_out1           (clk_100MHz),
+		.reset              (1'b0),
+		.locked             ()
+	);
+
     h265enc_top_with_axi h265enc_top_with_axi_0 (
         .axi_clk            (ap_clk),
         .axi_rstn           (ap_rst_n),
-		.enc_clk            (clk_125MHz),
+		.enc_clk            (clk_100MHz),
         .enc_rstn           (ap_rst_n),
     
         //---- AXI bus interfaced with SNAP core ----               

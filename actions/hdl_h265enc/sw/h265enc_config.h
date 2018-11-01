@@ -1,7 +1,7 @@
 #ifndef  __CONFIG_H_
 #define  __CONFIG_H_
 
-#define GOP_LENGTH              10
+#define GOP_LENGTH              1
 
 #define FRAMEWIDTH              448
 #define FRAMEHEIGHT             256

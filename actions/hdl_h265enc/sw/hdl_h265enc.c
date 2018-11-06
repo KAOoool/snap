@@ -93,6 +93,18 @@ static void* alloc_mem (int align, int size)
 	return a;
 }
 
+static int mem_init (void* src, void* dest, size_t size)
+{
+	uint8_t* ptr_src = (uint8_t*) src;
+	uint8_t* ptr_dest = (uint8_t*) dest;
+	size_t cnt;
+
+	for (cnt = 0; cnt< size; cnt++)
+		*(ptr_src++) = 0;
+		*(ptr_dest++) = 0;
+
+	return 0;
+}
 //static void free_mem (void* a)
 //{
 //	VERBOSE2 ("Free Mem %p\n", a);
@@ -136,114 +148,116 @@ static uint32_t action_read(struct snap_card* h, uint32_t addr)
 /*...*/
 
 static int do_action (struct snap_card* dnc,
-                    void* src,
-                    void* dest,
-                    uint64_t* elapsed
+					void* src,
+					void* dest,
+					int frame_num,
+					uint64_t* elapsed
                     )
 {
-    int rc;
-    uint64_t t_start;   /* time in usec */
-    uint64_t td = 0;    /* Diff time in usec */
+	int rc = 0;
+	uint64_t t_start;   /* time in usec */
+	uint64_t td = 0;    /* Diff time in usec */
+	
+	FILE* fp_src;
+	FILE* fp_des;
+	int frame_read;
+	int bs_write = 0;
+	uint32_t bs_length = 0 ;
+	uint64_t patt_size = FRAMEWIDTH*FRAMEHEIGHT*1.5;
 
-    FILE* fp1;
-    int bs_write1;
+	uint32_t rec_0_base = REC_0_BASE;
+	uint32_t rec_1_base = REC_1_BASE;
+	uint32_t reg_x_total = X_TOTAL;
+	uint32_t reg_y_total = Y_TOTAL;
+	uint32_t qp = QP;
 
-    rc = 0;
+	int frame_cnt;
+	uint64_t addr;
 
-    int frame_cnt;
-    uint32_t bs_length = 0 ;
-    uint32_t rec_0_base = REC_0_BASE;
-    uint32_t rec_1_base = REC_1_BASE; 
+	if ((fp_src = fopen("/home/twyang/Desktop/snap/actions/hdl_h265enc/sw/fetch_i_cur.yuv","rb"))==NULL) {
+		VERBOSE0("ERROR: Fail to open yuv source file!\n");
+		return -1;
+	}
+	if ((fp_des = fopen("/home/twyang/Desktop/snap/actions/hdl_h265enc/sw/bs.dat","ab+"))==NULL) {
+		VERBOSE0("ERROR: Fail to create bs file!\n");
+		return -1;
+	}
 
-    if ((fp1 = fopen("/root/snap/actions/hdl_h265enc/sw/bs1.dat","wb"))==NULL) {
-            VERBOSE0("ERROR: Fail to create bs1 file!\n");
-            return -1;
-    } 
+	VERBOSE0 (" Start register config! \n");
 
-    uint32_t reg_x_total = X_TOTAL;
-    uint32_t reg_y_total = Y_TOTAL;
-    uint32_t qp = QP;
-    uint64_t addr;
+	// source address
+	addr = (uint64_t)src;
+	action_write(dnc, REG_ORI_BASE_HIGH, (uint32_t)(addr >> 32));
+	action_write(dnc, REG_ORI_BASE_LOW, (uint32_t)(addr & 0xffffffff));
+	VERBOSE1 (" Write REG_ORI_BASE done! \n");
 
-    VERBOSE0 (" Start register config! \n");
+	// target address
+	addr = (uint64_t)dest;      
+	action_write(dnc, REG_BS_BASE_HIGH, (uint32_t)(addr >> 32));   
+	action_write(dnc, REG_BS_BASE_LOW, (uint32_t)(addr & 0xffffffff)); 
+	VERBOSE1 (" Write REG_BS_BASE done! \n");
 
-    // source address
-    addr = (uint64_t)src;
-    action_write(dnc, REG_ORI_BASE_HIGH, (uint32_t)(addr >> 32));
-    action_write(dnc, REG_ORI_BASE_LOW, (uint32_t)(addr & 0xffffffff));
-    VERBOSE1 (" Write REG_ORI_BASE done! \n");
+	//x_total, y_total, qp
+	action_write(dnc, REG_X_TOTAL, reg_x_total);
+	action_write(dnc, REG_Y_TOTAL, reg_y_total);
+	action_write(dnc, REG_QP, qp);
 
-    // target address
-    addr = (uint64_t)dest;      
-    action_write(dnc, REG_BS_BASE_HIGH, (uint32_t)(addr >> 32));   
-    action_write(dnc, REG_BS_BASE_LOW, (uint32_t)(addr & 0xffffffff)); 
-    VERBOSE1 (" Write REG_BS_BASE done! \n");
+	VERBOSE1 (" Register config done! \n");
 
-    //x_total, y_total, qp
-    action_write(dnc, REG_X_TOTAL, reg_x_total);
-    action_write(dnc, REG_Y_TOTAL, reg_y_total);
-    action_write(dnc, REG_QP, qp);
+	t_start = get_usec();
 
-    VERBOSE1 (" Register config done! \n");
+	for(frame_cnt = 0; frame_cnt < frame_num; frame_cnt++) {
 
-    VERBOSE1(" test!\n ");
-    t_start = get_usec();
+		frame_read = fread(src, patt_size, 1, fp_src);
+		VERBOSE0(" frame number: %d\n", frame_cnt);
 
-    VERBOSE1(" test!\n ");
-    for(frame_cnt = 0; frame_cnt < 1; frame_cnt++) {
-        VERBOSE0(" frame number: %d\n", frame_cnt);
+		// start enc
+		if( (frame_cnt%GOP_LENGTH)==0 ) {
+			action_write(dnc, REG_TYPE, 0X00000000);
+		}
+		else {
+			action_write(dnc, REG_TYPE, 0X00000001);
+		}
+		if( ((frame_cnt%GOP_LENGTH)%2)==0 ) {
+			action_write(dnc, REG_REC_0_BASE, rec_0_base);
+			action_write(dnc, REG_REC_1_BASE, rec_1_base);
+		}
+		else {
+			action_write(dnc, REG_REC_0_BASE, rec_1_base);
+			action_write(dnc, REG_REC_1_BASE, rec_0_base);
+		}
+		action_write(dnc, REG_START, 0X00000001);
 
-        VERBOSE1(" test!\n ");
-        // start enc
-        if( (frame_cnt%GOP_LENGTH)==0 ) {
-            action_write(dnc, REG_TYPE, 0X00000000);
-        }
-        else {
-            action_write(dnc, REG_TYPE, 0X00000001);
-        }
-        if( ((frame_cnt%GOP_LENGTH)%2)==0 ) {
-            action_write(dnc, REG_REC_0_BASE, rec_0_base);
-            action_write(dnc, REG_REC_1_BASE, rec_1_base);
-        }
-        else {
-            action_write(dnc, REG_REC_0_BASE, rec_1_base);
-            action_write(dnc, REG_REC_1_BASE, rec_0_base);
-        }
-        action_write(dnc, REG_START, 0X00000001);
+		// Poll status for done signal
 
-        // Poll status for done signal
+		while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 1) {
+			;
+		}
+		while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 0) {
+			;
+		}
 
-        VERBOSE1(" test!\n ");
-        while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 1) {
-	    ;
-        }
+		VERBOSE0 ("One frame encoded!\n");
 
-        VERBOSE0 ("Done!\n");
-        while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 0) {
-	    ;
-        }
+		// get bs length
+		bs_length = action_read(dnc, COUNT_A);
+		VERBOSE0 ("bs_length: 0x%x\n", bs_length);
 
-        VERBOSE0 ("One frame encoded!\n");
+		bs_write += fwrite(dest, 1, bs_length, fp_des);
+	}
 
-        // get bs length
-        bs_length = action_read(dnc, COUNT_A);
-        VERBOSE0 ("bs_length: 0x%x\n", bs_length);
+	VERBOSE0 ("The number of byte writen: %d\n",bs_write);
+	fclose(fp_src);
+	fclose(fp_des);
 
-        bs_write1 = fwrite(dest, 1, bs_length, fp1);
-        VERBOSE0 ("The number of byte writen: %d\n",bs_write1);
+	td = get_usec() - t_start;
+	*elapsed = td;
 
-    }
-        
-    fclose(fp1);
+	if (0 != rc) {
+		return rc;
+	}
 
-    td = get_usec() - t_start;
-    *elapsed = td;
-
-    if (0 != rc) {
-        return rc;
-    }
-
-    return rc;
+	return rc;
 }
 
 static struct snap_action* get_action (struct snap_card* handle,
@@ -291,14 +305,11 @@ int main (int argc, char* argv[])
 	snap_action_flag_t attach_flags = 0;
 	struct snap_action* act = NULL;
 	unsigned long ioctl_data;
-	int patt_size = FRAMEWIDTH*FRAMEHEIGHT*1.5;
-        int frame_num = 1;
-	void* src  = alloc_mem(64, patt_size*frame_num);
-	void* dest = alloc_mem(64, patt_size*frame_num);
+	uint64_t patt_size = FRAMEWIDTH*FRAMEHEIGHT*1.5;
+	int frame_num = 1;
+	void* src  = alloc_mem(64, patt_size);
+	void* dest = alloc_mem(64, patt_size);
 	uint64_t td;
-
-        FILE* fp;
-        int frame_read;
 
 	while (1) {
 		int option_index = 0;
@@ -350,13 +361,8 @@ int main (int argc, char* argv[])
 		}
 	}
 
-        if ((fp = fopen("/root/snap/actions/hdl_h265enc/sw/fetch_i_cur.yuv","rb"))==NULL) {
-                VERBOSE0("ERROR: no file!\n");
-                return -1;
-        }
-       
-        frame_read = fread(src, patt_size, frame_num, fp);
-        VERBOSE0 ("The number of frames read: %d\n",frame_read);
+	VERBOSE0 ("Init memory.\n");
+	rc = mem_init(src, dest, patt_size);
 
 	VERBOSE2 ("Open Card: %d\n", card_no);
 	sprintf (device, "/dev/cxl/afu%d.0s", card_no);
@@ -407,10 +413,8 @@ int main (int argc, char* argv[])
 
 	VERBOSE0 ("Finish get action.\n");
 
-    	VERBOSE0 ("Start H265 Encoding.\n");
-    	rc = do_action (dn, src, dest, &td);
-
-        fclose(fp);
+	VERBOSE0 ("Start H265 Encoding.\n");
+	rc = do_action (dn, src, dest, frame_num, &td);
 
 	snap_detach_action (act);
 
@@ -419,8 +423,8 @@ __exit1:
 	VERBOSE2 ("Free Card Handle: %p\n", dn);
 	snap_card_free (dn);
 
-	//free_mem(patt_src_base);
-	//free_mem(patt_tgt_base);
+	free_mem(src);
+	free_mem(dest);
 
 	VERBOSE1 ("End of Test rc: %d\n", rc);
 	return rc;

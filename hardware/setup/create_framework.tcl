@@ -18,26 +18,28 @@
 ############################################################################
 ############################################################################
 
-set root_dir     $::env(SNAP_HARDWARE_ROOT)
-set ip_dir       $root_dir/ip
-set usr_ip_dir   $ip_dir/managed_ip_project/managed_ip_project.srcs/sources_1/ip
-set hdl_dir      $root_dir/hdl
-set sim_dir      $root_dir/sim
-set fpga_part    $::env(FPGACHIP)
-set fpga_card    $::env(FPGACARD)
-set capi_bsp_dir $root_dir/capi2-bsp/$fpga_card/build/ip
-set capi_ver     $::env(CAPI_VER)
-set action_dir   $::env(ACTION_ROOT)/hw
-set action_tcl   [exec find $action_dir -name tcl -type d]
-set nvme_used    $::env(NVME_USED)
-set bram_used    $::env(BRAM_USED)
-set sdram_used   $::env(SDRAM_USED)
-set ila_debug    [string toupper $::env(ILA_DEBUG)]
-set simulator    $::env(SIMULATOR)
-set denali_used  $::env(DENALI_USED)
-set log_dir      $::env(LOGS_DIR)
-set log_file     $log_dir/create_framework.log
-set vivadoVer    [version -short]
+set root_dir       $::env(SNAP_HARDWARE_ROOT)
+set ip_dir         $root_dir/ip
+set hls_ip_dir     $ip_dir/hls_ip_project/hls_ip_project.srcs/sources_1/ip
+set hdl_dir        $root_dir/hdl
+set sim_dir        $root_dir/sim
+set fpga_part      $::env(FPGACHIP)
+set fpga_card      $::env(FPGACARD)
+set capi_bsp_dir   $root_dir/capi2-bsp/$fpga_card/build/ip
+set capi_ver       $::env(CAPI_VER)
+set action_dir     $::env(ACTION_ROOT)
+set action_hw_dir  $action_dir/hw
+set action_ip_dir  $action_dir/ip/action_ip_prj/action_ip_prj.srcs/sources_1/ip
+set action_tcl     [exec find $action_hw_dir -name tcl -type d]
+set nvme_used      $::env(NVME_USED)
+set bram_used      $::env(BRAM_USED)
+set sdram_used     $::env(SDRAM_USED)
+set ila_debug      [string toupper $::env(ILA_DEBUG)]
+set simulator      $::env(SIMULATOR)
+set denali_used    $::env(DENALI_USED)
+set log_dir        $::env(LOGS_DIR)
+set log_file       $log_dir/create_framework.log
+set vivadoVer      [version -short]
 
 if { [info exists ::env(HLS_SUPPORT)] == 1 } {
   set hls_support [string toupper $::env(HLS_SUPPORT)]
@@ -51,7 +53,7 @@ if { [info exists ::env(HLS_SUPPORT)] == 1 } {
 
 # HLS generates VHDL and Verilog files, SNAP is using the VHDL files
 if { $hls_support == "TRUE" } {
-  set action_dir $::env(ACTION_ROOT)/hw/vhdl
+  set action_hw_dir $::env(ACTION_ROOT)/hw/hls_syn_vhdl
 }
 
 if { [info exists ::env(PSL_DCP)] == 1 } {
@@ -123,12 +125,12 @@ if { [file exists $action_tcl] == 1 } {
     foreach tcl_file [glob -nocomplain -dir $action_tcl *.tcl] {
       set tcl_file_name [exec basename $tcl_file]
       puts "                        sourcing $tcl_file_name"
-      source $tcl_file >> $log_file
+      source $tcl_file
     }
   }
 }
 
-add_files -scan_for_includes $action_dir/ >> $log_file
+add_files -scan_for_includes $action_hw_dir/ >> $log_file
 
 
 # Sim Files
@@ -175,72 +177,28 @@ if { $simulator != "nosim" } {
   }
 }
 
-# Add IPs
-# SNAP CORE IPs
-puts "                        importing IPs"
-add_files -norecurse  $ip_dir/fifo_4x512/fifo_4x512.xci >> $log_file
-export_ip_user_files -of_objects  [get_files  "$ip_dir/fifo_4x512/fifo_4x512.xci"] -force >> $log_file
-add_files -norecurse  $ip_dir/fifo_8x512/fifo_8x512.xci >> $log_file
-export_ip_user_files -of_objects  [get_files  "$ip_dir/fifo_8x512/fifo_8x512.xci"] -force >> $log_file
-add_files -norecurse  $ip_dir/fifo_10x512/fifo_10x512.xci >> $log_file
-export_ip_user_files -of_objects  [get_files  "$ip_dir/fifo_10x512/fifo_10x512.xci"] -force >> $log_file
-add_files -norecurse  $ip_dir/fifo_513x512/fifo_513x512.xci >> $log_file
-export_ip_user_files -of_objects  [get_files  "$ip_dir/fifo_513x512/fifo_513x512.xci"] -force >> $log_file
-# DDR3 / BRAM IPs
-if { $fpga_card == "ADKU3" } {
-  if { $bram_used == "TRUE" } {
-    add_files -norecurse $ip_dir/axi_clock_converter/axi_clock_converter.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/axi_clock_converter/axi_clock_converter.xci"] -force >> $log_file
-    add_files -norecurse $ip_dir/block_RAM/block_RAM.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/block_RAM/block_RAM.xci"] -force >> $log_file
-  } elseif { $sdram_used == "TRUE" } {
-    add_files -norecurse $ip_dir/axi_clock_converter/axi_clock_converter.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/axi_clock_converter/axi_clock_converter.xci"] -force >> $log_file
-    add_files -norecurse $ip_dir/ddr3sdram/ddr3sdram.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/ddr3sdram/ddr3sdram.xci"] -force >> $log_file
-  }
-} elseif { ($fpga_card == "S121B") || ($fpga_card == "AD8K5") || ($fpga_card == "RCXVUP") || ($fpga_card == "FX609") || ($fpga_card == "S241") } {
-  if { $bram_used == "TRUE" } {
-    add_files -norecurse $ip_dir/axi_clock_converter/axi_clock_converter.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/axi_clock_converter/axi_clock_converter.xci"] -force >> $log_file
-    add_files -norecurse $ip_dir/block_RAM/block_RAM.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/block_RAM/block_RAM.xci"] -force >> $log_file
-  } elseif { $sdram_used == "TRUE" } {
-    add_files -norecurse $ip_dir/axi_clock_converter/axi_clock_converter.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/axi_clock_converter/axi_clock_converter.xci"] -force >> $log_file
-    add_files -norecurse $ip_dir/ddr4sdram/ddr4sdram.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/ddr4sdram/ddr4sdram.xci"] -force >> $log_file
-  }
-} elseif { ($fpga_card == "N250S") || ($fpga_card == "N250SP") } {
-  if { $bram_used == "TRUE" } {
-    if { $nvme_used == "TRUE" } {
-      add_files -norecurse $ip_dir/axi_interconnect/axi_interconnect.xci >> $log_file
-      export_ip_user_files -of_objects  [get_files "$ip_dir/axi_interconnect/axi_interconnect.xci"] -force >> $log_file
-    } else {
-      add_files -norecurse $ip_dir/axi_clock_converter/axi_clock_converter.xci >> $log_file
-      export_ip_user_files -of_objects  [get_files "$ip_dir/axi_clock_converter/axi_clock_converter.xci"] -force >> $log_file
-    }
-    add_files -norecurse $ip_dir/block_RAM/block_RAM.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/block_RAM/block_RAM.xci"] -force >> $log_file
-  } elseif { $sdram_used == "TRUE" } {
-    if { $nvme_used == "TRUE" } {
-      add_files -norecurse $ip_dir/axi_interconnect/axi_interconnect.xci >> $log_file
-      export_ip_user_files -of_objects  [get_files "$ip_dir/axi_interconnect/axi_interconnect.xci"] -force >> $log_file
-    } else {
-      add_files -norecurse $ip_dir/axi_clock_converter/axi_clock_converter.xci >> $log_file
-      export_ip_user_files -of_objects  [get_files "$ip_dir/axi_clock_converter/axi_clock_converter.xci"] -force >> $log_file
-    }
-    add_files -norecurse $ip_dir/ddr4sdram/ddr4sdram.xci >> $log_file
-    export_ip_user_files -of_objects  [get_files "$ip_dir/ddr4sdram/ddr4sdram.xci"] -force >> $log_file
-  }
+# Add IP
+# SNAP CORE IP
+puts "                        importing IP"
+foreach ip_xci [glob -nocomplain -dir $ip_dir */*.xci] {
+  set ip_name [exec basename $ip_xci .xci]
+  puts "	                adding SNAP IP $ip_name"
+  add_files -norecurse $ip_xci  -force >> $log_file
+  export_ip_user_files -of_objects  [get_files "$ip_xci"] -force >> $log_file
 }
-# User IPs
-foreach usr_ip [glob -nocomplain -dir $usr_ip_dir *] {
-  set usr_ip_name [exec basename $usr_ip]
-  puts "                        importing user IP $usr_ip_name"
-  set usr_ip_xci [glob -dir $usr_ip *.xci]
-  add_files -norecurse $usr_ip_xci >> $log_file
-  export_ip_user_files -of_objects  [get_files "$usr_ip_xci"] -force >> $log_file
+# HLS Action IP
+foreach ip_xci [glob -nocomplain -dir $hls_ip_dir */*.xci] {
+  set ip_name [exec basename $ip_xci .xci]
+  puts "                        adding HLS Action IP $ip_name"
+  add_files -norecurse $ip_xci -force >> $log_file
+  export_ip_user_files -of_objects  [get_files "$ip_xci"] -no_script -sync -force >> $log_file
+}
+# HDL Action IP
+foreach ip_xci [glob -nocomplain -dir $action_ip_dir */*.xci] {
+  set ip_name [exec basename $ip_xci .xci]
+  puts "                        adding HDL Action IP $ip_name"
+  add_files -norecurse $ip_xci -force >> $log_file
+  export_ip_user_files -of_objects  [get_files "$ip_xci"] -no_script -sync -force >> $log_file
 }
 
 # Add NVME
@@ -249,7 +207,7 @@ if { $nvme_used == TRUE } {
   set_property  ip_repo_paths $hdl_dir/nvme/ [current_project]
   update_ip_catalog  >> $log_file
   add_files -norecurse                          $ip_dir/nvme/nvme.srcs/sources_1/bd/nvme_top/nvme_top.bd  >> $log_file
-  export_ip_user_files -of_objects  [get_files  $ip_dir/nvme/nvme.srcs/sources_1/bd/nvme_top/nvme_top.bd] -lib_map_path [list {{ies=$root_dir/viv_project/framework.cache/compile_simlib/ies}}] -force -quiet
+  export_ip_user_files -of_objects  [get_files  $ip_dir/nvme/nvme.srcs/sources_1/bd/nvme_top/nvme_top.bd] -lib_map_path [list {{ies=$root_dir/viv_project/framework.cache/compile_simlib/ies}}] -no_script -sync -force -quiet
 
   if { $denali_used == TRUE } {
     puts "                        adding NVMe Denali simulation files"
@@ -268,7 +226,7 @@ if { $nvme_used == TRUE } {
     set_property file_type {Verilog Header} [get_files $hdl_dir/nvme/nvme_defines.sv]
   }
 } else {
-  remove_files $action_dir/action_axi_nvme.vhd -quiet
+  remove_files $action_hw_dir/action_axi_nvme.vhd -quiet
 }
 
 # Add CAPI board support
@@ -278,7 +236,7 @@ if { ($capi_ver == "capi20") && [file exists $capi_bsp_dir/capi_bsp_wrap.xcix] }
   update_ip_catalog >> $log_file
 
   add_files -norecurse                  $capi_bsp_dir/capi_bsp_wrap.xcix -force >> $log_file
-  export_ip_user_files -of_objects      [get_files capi_bsp_wrap.xci] -force >> $log_file
+  export_ip_user_files -of_objects      [get_files capi_bsp_wrap.xci] -no_script -sync -force >> $log_file
   set_property used_in_simulation false [get_files capi_bsp_wrap.xci] >> $log_file
 } elseif { ($capi_ver == "capi10") && ($psl_dcp != "FALSE") } {
   puts "                        importing PSL design checkpoint"
@@ -291,7 +249,7 @@ puts "                        importing XDCs"
 
 # Board Support XDC
 if { $capi_ver == "capi20" } {
-  puts "                        importing specific Board support XDCs"
+  puts "                        importing specific board support XDCs"
   add_files -fileset constrs_1 -norecurse $root_dir/setup/$fpga_card/snap_$fpga_card.xdc >> $log_file
 }
 

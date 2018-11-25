@@ -90,7 +90,7 @@ PSL_DCP_TYPE=$(shell $(SNAP_HARDWARE_ROOT)/snap_check_psl "$(FPGACARD)" "$(PSL_D
 
 ifeq ($(PLATFORM),x86_64)
 
-.PHONY: all snap_config check_snap_settings check_simulator check_nvme prepare_project snap_preprocess_start snap_preprocess_execute snap_preprocess patch_version patch_NVMe action_hw create_project hw_project_start hw_project .hw_project_done config add_psl_dcp check_bsp image cloud_enable cloud_base cloud_action cloud_merge pslse software app model xsim irun nosim sim clean
+.PHONY: all snap_config check_snap_settings check_simulator check_nvme prepare_project snap_preprocess_start snap_preprocess_execute snap_preprocess patch_version patch_NVMe action_hw create_hls_ip create_project hw_project_start hw_project .hw_project_done config add_psl_dcp check_bsp image cloud_enable cloud_base cloud_action cloud_merge pslse software app model xsim irun nosim sim clean
 
 all: model image
 
@@ -127,6 +127,7 @@ check_snap_settings:
 		echo "                        PSL_DCP         = $(PSL_DCP)"; \
 	elif [ "$(CAPI_VER)" == "capi20" ]; then \
 		echo "                        PSL9_IP         = $(PSL9_IP)"; \
+		echo "                        FPGA ACTION CLK = $(FPGA_ACTION_CLK)"; \
 	fi
 	@echo "                        FPGACARD        = $(FPGACARD)"
 	@echo "                        FPGACHIP        = $(FPGACHIP)"
@@ -239,10 +240,10 @@ action_hw: prepare_logs
 		echo "                        Error: Path to ACTION_ROOT is not defined properly"; exit -1; \
 	fi
 	@echo "Calling make -C $(ACTION_ROOT) hw" > $(LOGS_DIR)/action_make.log
-	@$(MAKE) -C $(ACTION_ROOT) hw >> $(LOGS_DIR)/action_make.log;
-	@if [ $$? -ne 0 ]; then \
-		echo -e "                        Error: please look into $(LOGS_DIR)/action_make.log"; exit -1; \
-	fi
+	@$(MAKE) -C $(ACTION_ROOT) hw; \
+		if [ $$? -ne 0 ]; then \
+			echo -e "                        Error: please look into $(LOGS_DIR)/action_make.log"; exit -1; \
+		fi
 	@if [ "$(HLS_SUPPORT)" == "TRUE" ]; then \
 	        echo "Calling make -C $(ACTION_ROOT)/hw vhdl" >> $(LOGS_DIR)/action_make.log; \
 		$(MAKE) -kC $(ACTION_ROOT)/hw vhdl >> $(LOGS_DIR)/action_make.log; \
@@ -252,23 +253,27 @@ action_hw: prepare_logs
 	fi
 	@echo -e "[CONFIG ACTION HW....] done  `date +"%T %a %b %d %Y"`";
 
-.create_ip_done:
-	@cd $(BUILD_DIR)  &&  vivado -quiet -mode batch -source $(SETUP_DIR)/create_ip.tcl        -notrace -log $(LOGS_DIR)/create_ip.log         -journal $(LOGS_DIR)/create_ip.jou
-	@touch .create_ip_done
+.create_snap_ip_done:
+	@cd $(BUILD_DIR)  &&  vivado -quiet -mode batch -source $(SETUP_DIR)/create_snap_ip.tcl -notrace -log $(LOGS_DIR)/create_snap_ip.log -journal $(LOGS_DIR)/create_snap_ip.jou
+	@touch .create_snap_ip_done
 
 .create_nvme_done:
 	@echo -e "[CREATE NVME.........] start `date +"%T %a %b %d %Y"`";
-	@cd $(BUILD_DIR)  &&  vivado -quiet -mode batch -source $(SETUP_DIR)/create_nvme_host.tcl -notrace -log $(LOGS_DIR)/create_nvme_host.log  -journal $(LOGS_DIR)/create_nvme_host.jou
+	@cd $(BUILD_DIR)  &&  vivado -quiet -mode batch -source $(SETUP_DIR)/create_nvme_host.tcl -notrace -log $(LOGS_DIR)/create_nvme_host.log -journal $(LOGS_DIR)/create_nvme_host.jou
 	@$(MAKE) -s patch_NVMe
 	@echo -e "[CREATE NVME.........] done  `date +"%T %a %b %d %Y"`";
 	@touch .create_nvme_done
 
+create_hls_ip:
+	@cd $(BUILD_DIR) &&  vivado -quiet -mode batch -source $(SETUP_DIR)/create_hls_ip.tcl -notrace -log $(LOGS_DIR)/create_hls_ip.log -journal $(LOGS_DIR)/create_hls_ip.jou
+
 create_project: snap_preprocess
 	@echo -e "[CREATE PROJECT......] start `date +"%T %a %b %d %Y"`";
 	@echo -e "                        using `vivado -version |grep Vivado`"
-	@$(MAKE) -s .create_ip_done
+	@$(MAKE) -s .create_snap_ip_done
+	@$(MAKE) -s create_hls_ip
 	@if [ "$(NVME_USED)" == "TRUE" ]; then $(MAKE) -s .create_nvme_done; fi
-	@cd $(BUILD_DIR)  &&  vivado -quiet -mode batch -source $(SETUP_DIR)/create_framework.tcl -notrace -log $(LOGS_DIR)/create_framework.log  -journal $(LOGS_DIR)/create_framework.jou
+	@cd $(BUILD_DIR)  &&  vivado -quiet -mode batch -source $(SETUP_DIR)/create_framework.tcl -notrace -log $(LOGS_DIR)/create_framework.log -journal $(LOGS_DIR)/create_framework.jou
 	@echo -e "[CREATE PROJECT......] done  `date +"%T %a %b %d %Y"`"
 
 hw_project_start:
@@ -311,17 +316,31 @@ check_bsp: capi2-bsp/$(FPGACARD)/.create_ip_done
 			else  \
 				echo "### ERROR ### PSL_DCP is pointing to a checkpoint for a $(PSL_DCP_TYPE) card while FPGACARD is set to $(FPGACARD)."; exit -1; \
 			fi; \
-		elif [ "$(CAPI_VER)" == "capi20" ] && [ ! -e "$(SNAP_HARDWARE_ROOT)/capi2-bsp/$(FPGACARD)/build/ip/capi_bsp_wrap.xcix" ]; then \
-			echo "### ERROR ### CAPI board support IP for $(FPGACARD) is not prepared."; \
-			echo "              This is a requirement for image build."; \
-			if [ ! -e  "$(PSL9_IP_DIR)/$(PSL9_IP_ARCHIVE)" ] && [ ! -e "$(PSL9_IP_CORE)" ]; then \
-				echo "### ERROR ### For CAPI board support build, please make sure that"; \
-				echo "              $(PSL9_IP_ARCHIVE)"; \
-				echo "              is available at directory"; \
-				echo "              $(PSL9_IP_DIR)"; \
-				echo "              or that the environment variable PSL9_IP_CORE is pointing to that file."; \
-			fi; \
-			exit -1; \
+		elif [ "$(CAPI_VER)" == "capi20" ]; then \
+		    if [ ! -e "$(SNAP_HARDWARE_ROOT)/capi2-bsp/$(FPGACARD)/build/ip/capi_bsp_wrap.xcix" ]; then \
+		        echo "### ERROR ### CAPI board support IP for $(FPGACARD) is not prepared."; \
+		        echo "              This is a requirement for image build."; \
+		        if [ ! -e  "$(PSL9_IP_DIR)/$(PSL9_IP_ARCHIVE)" ] && [ ! -e "$(PSL9_IP_CORE)" ]; then \
+			    echo "### ERROR ### For CAPI board support build, please make sure that"; \
+			    echo "              $(PSL9_IP_ARCHIVE)"; \
+			    echo "              is available at directory"; \
+			    echo "              $(PSL9_IP_DIR)"; \
+			    echo "              or that the environment variable PSL9_IP_CORE is pointing to that file."; \
+		        fi; \
+		        exit -1; \
+		    elif [ -e "$(SNAP_HARDWARE_ROOT)/capi2-bsp/$(FPGACARD)/.action_clk_225MHZ" ] \
+                          && [ $(FPGA_ACTION_CLK) == "250MHZ" ]; then                    \
+			echo "PSL for $(FPGACARD) card needs to be recreated for 250MHZ Action clock (Last compilation done with 225MHZ)";         \
+			$(MAKE) -s -C $(SNAP_HARDWARE_ROOT)/capi2-bsp clean $(FPGACARD); \
+		    elif [ -e "$(SNAP_HARDWARE_ROOT)/capi2-bsp/$(FPGACARD)/.action_clk_250MHZ" ] \
+                          && [ $(FPGA_ACTION_CLK) == "225MHZ" ]; then                    \
+			echo "PSL for $(FPGACARD) card needs to be recreated for 225MHZ Action clock (Last compilation done with 250MHZ)";         \
+			$(MAKE) -s -C $(SNAP_HARDWARE_ROOT)/capi2-bsp clean $(FPGACARD); \
+		    elif [ ! -e "$(SNAP_HARDWARE_ROOT)/capi2-bsp/$(FPGACARD)/.action_clk_225MHZ" ] \
+		      && [ ! -e "$(SNAP_HARDWARE_ROOT)/capi2-bsp/$(FPGACARD)/.action_clk_250MHZ" ]; then  \
+			echo "PSL for $(FPGACARD) card needs to be recreated (No logs states how it was compiled earlier)";         \
+			$(MAKE) -s -C $(SNAP_HARDWARE_ROOT)/capi2-bsp clean $(FPGACARD); \
+		    fi; \
 		fi; \
 	fi
 
@@ -420,7 +439,7 @@ $(SNAP_SIMULATORS): check_nvme .hw_project_done app
 	@cd $(SIM_DIR) && vivado -quiet -mode batch -source $(SETUP_DIR)/export_$@.tcl -notrace -log $(LOGS_DIR)/compile_$@.log -journal $(LOGS_DIR)/compile_$@.jou
 	@$(SETUP_DIR)/patch_sim.sh $(SIM_DIR)/$(subst irun,ies,$@) top.sh >> $(LOGS_DIR)/compile_$@.log 2>&1
 	@cd $(SIM_DIR)/$(subst irun,ies,$@) && ln -sf $(PSLSE_ROOT)/afu_driver/src/libdpi.so;
-	@echo -e "                        build a $@ model";
+	@echo -e "                        build $@ model";
 	@cd $(SIM_DIR)/$(subst irun,ies,$@); \
 		./top.sh >> $(LOGS_DIR)/compile_$@.log 2>&1; \
 		if [ $$? -ne 0 ]; then \
@@ -454,7 +473,7 @@ endif
 .PHONY: clean
 clean:
 	@echo -e "[CLEAN ENVIRONMENT...] start `date +"%T %a %b %d %Y"`"
-	@$(RM)    .hw_project_done .create_ip_done .create_nvme_done
+	@$(RM)    .hw_project_done .create_snap_ip_done .create_nvme_done
 	@$(RM) -r $(SNAP_PP_FILES_VHD)                   \
 	          $(SNAP_SIM_CORE)/top.sv_source         \
 	          $(SNAP_SIM_NVME)/endp_4_pipe32.v       \
@@ -476,7 +495,6 @@ clean:
 	@echo -e "                        log files";
 	@$(RM) -r logs
 	@echo -e "                        action / application";
-	@$(RM) $(ACTION_ROOT)/hw/vhdl
 	@if [ -e "$(ACTION_ROOT)/Makefile" ]; then	    \
 		$(MAKE) -C $(ACTION_ROOT) $@ > /dev/null;   \
 		if [ $$? -ne 0 ]; then                      \

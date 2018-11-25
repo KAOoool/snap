@@ -32,7 +32,7 @@
 #include <snap_s_regs.h>
 
 #include "hdl_h265enc.h"
-#include "h265enc_config.h"
+#include "h265enc_bs.c"
 
 /*  defaults */
 #define ACTION_WAIT_TIME	10   /* Default in sec */
@@ -93,20 +93,18 @@ static void* alloc_mem (int align, int size)
 	return a;
 }
 
-static int mem_init (void* src, void* dest, size_t size)
+static int mem_init (void* src, void* dest, size_t mem_size)
 {
 	uint8_t* ptr_src = (uint8_t*) src;
 	uint8_t* ptr_dest = (uint8_t*) dest;
 	size_t cnt;
 
-	for (cnt = 0; cnt< size; cnt++){
+	for (cnt = 0; cnt< mem_size; cnt++){
 		*(ptr_src++) = 0;
 		*(ptr_dest++) = 0;
 	}
-
 	return 0;
 }
-
 static void free_mem (void* a)
 {
 	VERBOSE2 ("Free Mem %p\n", a);
@@ -142,7 +140,68 @@ static uint32_t action_read(struct snap_card* h, uint32_t addr)
 	return data;
 }
 
+static void paramInit(param_t* param){
 
+	param->type = SLICE_TYPE_I;
+	param->frame_num = 0 ;
+	param->qp        = QP;
+	param->gop_length   = GOP_LENGTH;
+	param->frame_width  = FRAMEWIDTH;
+	param->frame_height = FRAMEHEIGHT;
+	param->frame_total  = FRAME_TOTAL;
+	param->mb_x_total   = X_TOTAL;
+	param->mb_y_total   = Y_TOTAL;
+
+}
+
+static void bsInit(bs_t* bs){
+
+	bs->pCur     = NULL;
+	bs->bitsCur  = 0;
+	bs->bitsLeft = 32;
+	bs->bitsEncoded = 0;
+	bs->byteCnt     = 0;
+}
+
+static void bsReset(bs_t* bs){
+
+	bs->pCur     = NULL;
+	bs->bitsCur  = bs->bitsCur;
+	bs->bitsLeft = bs->bitsLeft;
+	bs->bitsEncoded = 0;
+	bs->byteCnt     = 0;
+}
+
+/* Dump reg states*/
+static void dump_regs(struct snap_card* h)
+{
+	uint32_t reg;
+	reg = action_read(h, REG_ORI_BASE_HIGH);
+	VERBOSE1("\nREG_ORI_BASE_HIGH: 0x%08x\n", reg);
+		reg = action_read(h, REG_ORI_BASE_LOW);
+	VERBOSE1("REG_ORI_BASE_LOW: 0x%08x\n", reg);
+		reg = action_read(h, REG_BS_BASE_HIGH);
+	VERBOSE1("REG_BS_BASE_HIGH: 0x%08x\n", reg);
+		reg = action_read(h, REG_BS_BASE_LOW);
+	VERBOSE1("REG_BS_BASE_LOW:  0x%08x\n", reg);
+		reg = action_read(h, REG_QP);
+	VERBOSE1("REG_QP:  0x%08x\n", reg);
+		reg = action_read(h, REG_X_TOTAL);
+	VERBOSE1("REG_X_TOTAL:    0x%08x\n", reg);
+		reg = action_read(h, REG_Y_TOTAL);
+	VERBOSE1("REG_Y_TOTAL:   0x%08x\n", reg);
+		reg = action_read(h, REG_START);
+	VERBOSE1("REG_START:   0x%08x\n", reg);
+		reg = action_read(h, SYS_DONE_I);
+	VERBOSE1("SYS_DONE_I:   0x%08x\n", reg);
+		reg = action_read(h, REG_TYPE);
+	VERBOSE1("REG_TYPE:   0x%08x\n", reg);
+/*		reg = action_read(h, REG_STATE);
+	VERBOSE1("REG_STATE:   0x%08x\n", reg);
+		reg = action_read(h, REG_RST);
+	VERBOSE1("REG_RST:   0x%08x\n", reg);*/
+
+}
 /*
  *  Start Action and wait for Idle.
  */
@@ -152,29 +211,42 @@ static uint32_t action_read(struct snap_card* h, uint32_t addr)
 static int do_action (struct snap_card* dnc,
 					void* src,
 					void* dest,
-					int frame_num,
 					uint64_t* elapsed
-                    )
+					)
 {
 	int rc = 0;
 	uint64_t t_start;   /* time in usec */
 	uint64_t td = 0;    /* Diff time in usec */
 	
-	FILE* fp_src;
-	FILE* fp_des;
-	int frame_read;
-	int bs_write = 0;
-	uint32_t bs_length = 0 ;
-	uint64_t patt_size = FRAMEWIDTH*FRAMEHEIGHT*1.5;
-
+	uint32_t frame_total = FRAME_TOTAL;
+	uint64_t mem_size = MEM_SIZE;
 	uint32_t rec_0_base = REC_0_BASE;
 	uint32_t rec_1_base = REC_1_BASE;
 	uint32_t reg_x_total = X_TOTAL;
 	uint32_t reg_y_total = Y_TOTAL;
 	uint32_t qp = QP;
 
-	int frame_cnt;
+	uint32_t bs_write = 0;
+	uint32_t bs_length = 0;
+	uint32_t frame_read = 0;
+	uint32_t frame_cnt = 0;
+	uint32_t nal_write = 0;
 	uint64_t addr;
+
+	FILE* fp_src;
+	FILE* fp_des;
+	FILE* fp_nal;
+	bs_t          bs;
+	param_t       param;
+	sliceHeader_t sliceHeader;
+
+	uint8_t nalBuf[MAXBUFFSIZE];
+	int  nalByteCnt = 0;
+	uint8_t bs_temp;
+	uint32_t bs_i, nal_i;
+	uint32_t zero_cnt = 0;
+
+	memset(nalBuf, 0, sizeof(uint8_t)*MAXBUFFSIZE);
 
 	if ((fp_src = fopen("/home/twyang/Desktop/snap/actions/hdl_h265enc/sw/fetch_i_cur.yuv","rb"))==NULL) {
 		VERBOSE0("ERROR: Fail to open yuv source file!\n");
@@ -184,36 +256,58 @@ static int do_action (struct snap_card* dnc,
 		VERBOSE0("ERROR: Fail to create bs file!\n");
 		return -1;
 	}
+	if ((fp_nal = fopen("/home/twyang/Desktop/snap/actions/hdl_h265enc/sw/nal.dat","ab+"))==NULL) {
+		VERBOSE0("ERROR: Fail to create nal file!\n");
+		return -1;
+	}
 
-	VERBOSE0 (" Start register config! \n");
+	paramInit(&param);
+	bsInit(&bs);
+	bs.pCur = &nalBuf[0];
+	vpsWrite(&bs, param);
+	nal_write += fwrite(&nalBuf[0], 1, bs.byteCnt, fp_nal);
 
-	// source address
-	addr = (uint64_t)src;
-	action_write(dnc, REG_ORI_BASE_HIGH, (uint32_t)(addr >> 32));
-	action_write(dnc, REG_ORI_BASE_LOW, (uint32_t)(addr & 0xffffffff));
-	VERBOSE1 (" Write REG_ORI_BASE done! \n");
+	bsReset(&bs);
+	bs.pCur = &nalBuf[0];
+	spsWrite(&sliceHeader.sps, &bs, param);
+	nal_write += fwrite(&nalBuf[0], 1, bs.byteCnt, fp_nal);
 
-	// target address
-	addr = (uint64_t)dest;      
-	action_write(dnc, REG_BS_BASE_HIGH, (uint32_t)(addr >> 32));   
-	action_write(dnc, REG_BS_BASE_LOW, (uint32_t)(addr & 0xffffffff)); 
-	VERBOSE1 (" Write REG_BS_BASE done! \n");
-
-	//x_total, y_total, qp
-	action_write(dnc, REG_X_TOTAL, reg_x_total);
-	action_write(dnc, REG_Y_TOTAL, reg_y_total);
-	action_write(dnc, REG_QP, qp);
-
-	VERBOSE1 (" Register config done! \n");
+	bsReset(&bs);
+	bs.pCur = &nalBuf[0];
+	ppsWrite(&sliceHeader.pps, &bs, param);
+	nal_write += fwrite(&nalBuf[0], 1, bs.byteCnt, fp_nal);
 
 	t_start = get_usec();
+	VERBOSE0 ("Start H265 Encoding.\n");
+//	action_write(dnc, REG_RST, 0x00000000);
 
-	for(frame_cnt = 0; frame_cnt < frame_num; frame_cnt++) {
+	for(frame_cnt = 0; frame_cnt < frame_total; frame_cnt++) {
 
-		frame_read = fread(src, patt_size, 1, fp_src);
-		VERBOSE0(" frame read: %d frame number: %d\n", frame_read, frame_cnt);
+		VERBOSE1 ("Start register config!\n");
 
-		// start enc
+		// source address
+		addr = (uint64_t)src;
+		action_write(dnc, REG_ORI_BASE_HIGH, (uint32_t)(addr >> 32));
+		action_write(dnc, REG_ORI_BASE_LOW, (uint32_t)(addr & 0xffffffff));
+		VERBOSE1 ("Write REG_ORI_BASE done!\n");
+
+		// target address
+		addr = (uint64_t)dest;      
+		action_write(dnc, REG_BS_BASE_HIGH, (uint32_t)(addr >> 32));   
+		action_write(dnc, REG_BS_BASE_LOW, (uint32_t)(addr & 0xffffffff)); 
+		VERBOSE1 ("Write REG_BS_BASE done!\n");
+
+		//x_total, y_total, qp
+		action_write(dnc, REG_X_TOTAL, reg_x_total);
+		action_write(dnc, REG_Y_TOTAL, reg_y_total);
+		action_write(dnc, REG_QP, qp);
+
+		VERBOSE1 ("Register config done!\n");
+
+		frame_read = fread(src, mem_size, 1, fp_src);
+		VERBOSE1("frame read: %d  frame number: %d\n",frame_read,frame_cnt);
+
+		// Start enc
 		if( (frame_cnt%GOP_LENGTH)==0 ) {
 			action_write(dnc, REG_TYPE, 0X00000000);
 		}
@@ -228,29 +322,58 @@ static int do_action (struct snap_card* dnc,
 			action_write(dnc, REG_REC_0_BASE, rec_1_base);
 			action_write(dnc, REG_REC_1_BASE, rec_0_base);
 		}
-		action_write(dnc, REG_START, 0X00000001);
-
+//		action_write(dnc, REG_START, 0X00000001);
+		dump_regs(dnc);
 		// Poll status for done signal
-
-		while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 1) {
+/*		while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 1) {
 			;
 		}
 		while ((action_read(dnc, SYS_DONE_I) & 0x00000001) == 0) {
 			;
 		}
-
+*/
 		VERBOSE0 ("One frame encoded!\n");
 
-		// get bs length
+		// Get bs length
 		bs_length = action_read(dnc, COUNT_A);
 		VERBOSE0 ("bs_length: 0x%x\n", bs_length);
-
 		bs_write += fwrite(dest, 1, bs_length, fp_des);
+
+		for(bs_i=0, nal_i=0; bs_i < bs_length; bs_i++, nal_i++) {
+
+			bs_temp = *((uint8_t*) dest + bs_i);
+			if( (zero_cnt == 2) && (bs_temp <= 0x03) ) {
+				nalBuf[bs.byteCnt + nal_i] = 0x03;
+				nal_i++;
+				zero_cnt = 0;
+			}
+
+			if( bs_temp==0 ) {
+				zero_cnt++;
+			}
+			else {
+				zero_cnt = 0;
+ 			}
+
+			nalBuf[bs.byteCnt+nal_i] = bs_temp;
+    	}
+
+		bsReset(&bs);
+		bs.pCur = &nalBuf[0];
+		sliceHeaderWrite(&sliceHeader, &bs, param);
+		param.frame_num++;
+
+		nalByteCnt = bs.byteCnt + nal_i;
+		nal_write += fwrite(&nalBuf[0], 1, nalByteCnt, fp_nal);
+
+//		action_write(dnc, REG_RST, 0x00000001);
+//		action_write(dnc, REG_RST, 0x00000000);
 	}
 
 	VERBOSE0 ("The number of byte writen: %d\n",bs_write);
 	fclose(fp_src);
 	fclose(fp_des);
+	fclose(fp_nal);
 
 	td = get_usec() - t_start;
 	*elapsed = td;
@@ -307,10 +430,9 @@ int main (int argc, char* argv[])
 	snap_action_flag_t attach_flags = 0;
 	struct snap_action* act = NULL;
 	unsigned long ioctl_data;
-	uint64_t patt_size = FRAMEWIDTH*FRAMEHEIGHT*1.5;
-	int frame_num = 1;
-	void* src  = alloc_mem(64, patt_size);
-	void* dest = alloc_mem(64, patt_size);
+	uint64_t mem_size = MEM_SIZE;
+	void* src  = alloc_mem(64, mem_size);
+	void* dest = alloc_mem(64, mem_size);
 	uint64_t td;
 
 	while (1) {
@@ -364,7 +486,7 @@ int main (int argc, char* argv[])
 	}
 
 	VERBOSE0 ("Init memory.\n");
-	rc = mem_init(src, dest, patt_size);
+	rc = mem_init(src, dest, mem_size);
 
 	VERBOSE2 ("Open Card: %d\n", card_no);
 	sprintf (device, "/dev/cxl/afu%d.0s", card_no);
@@ -415,8 +537,7 @@ int main (int argc, char* argv[])
 
 	VERBOSE0 ("Finish get action.\n");
 
-	VERBOSE0 ("Start H265 Encoding.\n");
-	rc = do_action (dn, src, dest, frame_num, &td);
+	rc = do_action (dn, src, dest, &td);
 
 	snap_detach_action (act);
 

@@ -37,5 +37,9 @@
 #define SYS_DONE_I              0x5C
 #define REG_BS_BASE_HIGH        0x60
 #define REG_BS_BASE_LOW         0x64
+/*#define REG_STATE               0x68
+#define REG_CUR_X               0x6C
+#define REG_CUR_Y               0x70
+#define REG_RST                 0x74*/
 
 #endif	/* __SNAP_H265ENC__ */

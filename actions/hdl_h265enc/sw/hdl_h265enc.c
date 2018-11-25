@@ -99,20 +99,22 @@ static int mem_init (void* src, void* dest, size_t size)
 	uint8_t* ptr_dest = (uint8_t*) dest;
 	size_t cnt;
 
-	for (cnt = 0; cnt< size; cnt++)
+	for (cnt = 0; cnt< size; cnt++){
 		*(ptr_src++) = 0;
 		*(ptr_dest++) = 0;
+	}
 
 	return 0;
 }
-//static void free_mem (void* a)
-//{
-//	VERBOSE2 ("Free Mem %p\n", a);
-//
-//	if (a) {
-//		free (a);
-//	}
-//}
+
+static void free_mem (void* a)
+{
+	VERBOSE2 ("Free Mem %p\n", a);
+
+	if (a) {
+		free (a);
+	}
+}
 
 
 /* Action or Kernel Write and Read are 32 bit MMIO */
@@ -209,7 +211,7 @@ static int do_action (struct snap_card* dnc,
 	for(frame_cnt = 0; frame_cnt < frame_num; frame_cnt++) {
 
 		frame_read = fread(src, patt_size, 1, fp_src);
-		VERBOSE0(" frame number: %d\n", frame_cnt);
+		VERBOSE0(" frame read: %d frame number: %d\n", frame_read, frame_cnt);
 
 		// start enc
 		if( (frame_cnt%GOP_LENGTH)==0 ) {
